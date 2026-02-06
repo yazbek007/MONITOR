@@ -1,6 +1,6 @@
 """
 Crypto Signal Analyzer Bot - النسخة المحسنة والمستقرة
-نسخة 3.0 - تم إعادة الكتابة بالكامل لحل مشاكل المنطق والتحقق
+نسخة 3.5 - تحسين حساب المؤشرات لدقة أعلى
 """
 
 import os
@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
 from enum import Enum
+import math
 
 from flask import Flask, render_template, jsonify, request, Response
 import pandas as pd
@@ -59,6 +60,8 @@ class IndicatorType(Enum):
     VOLATILITY = "volatility"
     MARKET_SENTIMENT = "market_sentiment"
     PRICE_STRUCTURE = "price_structure"
+    SUPPORT_RESISTANCE = "support_resistance"
+    MARKET_CYCLE = "market_cycle"
 
 
 @dataclass
@@ -133,33 +136,34 @@ class AppConfig:
         CoinConfig(symbol="BNB/USDT", name="Binance Coin", base_asset="BNB", quote_asset="USDT")
     ]
     
-    # أوزان المؤشرات
+    # أوزان المؤشرات المحسنة
     INDICATOR_WEIGHTS = {
-        IndicatorType.TREND_STRENGTH.value: 0.20,
-        IndicatorType.MOMENTUM.value: 0.20,
-        IndicatorType.VOLUME_ANALYSIS.value: 0.15,
-        IndicatorType.VOLATILITY.value: 0.15,
-        IndicatorType.MARKET_SENTIMENT.value: 0.15,
-        IndicatorType.PRICE_STRUCTURE.value: 0.15
+        IndicatorType.TREND_STRENGTH.value: 0.18,
+        IndicatorType.MOMENTUM.value: 0.18,
+        IndicatorType.VOLUME_ANALYSIS.value: 0.14,
+        IndicatorType.VOLATILITY.value: 0.14,
+        IndicatorType.MARKET_SENTIMENT.value: 0.12,
+        IndicatorType.PRICE_STRUCTURE.value: 0.12,
+        IndicatorType.SUPPORT_RESISTANCE.value: 0.12
     }
     
-    # عتبات الإشارات
+    # عتبات الإشارات المحسنة
     SIGNAL_THRESHOLDS = {
-        SignalType.STRONG_BUY: 75,
-        SignalType.BUY: 60,
-        SignalType.NEUTRAL_HIGH: 55,
-        SignalType.NEUTRAL_LOW: 45,
-        SignalType.SELL: 40,
-        SignalType.STRONG_SELL: 25
+        SignalType.STRONG_BUY: 78,
+        SignalType.BUY: 62,
+        SignalType.NEUTRAL_HIGH: 56,
+        SignalType.NEUTRAL_LOW: 44,
+        SignalType.SELL: 38,
+        SignalType.STRONG_SELL: 22
     }
     
     # عتبات الإشعارات
     NOTIFICATION_THRESHOLDS = {
-        'strong_buy': 75,
-        'buy': 60,
-        'strong_sell': 25,
-        'sell': 40,
-        'significant_change': 10  # تغير بنسبة 10%
+        'strong_buy': 78,
+        'buy': 62,
+        'strong_sell': 22,
+        'sell': 38,
+        'significant_change': 8  # تغير بنسبة 8%
     }
     
     # إعدادات API
@@ -168,14 +172,15 @@ class AppConfig:
     MAX_RETRIES = 3
     RETRY_DELAY = 5  # ثانية
     
-    # ألوان المؤشرات
+    # ألوان المؤشرات المحسنة
     INDICATOR_COLORS = {
         IndicatorType.TREND_STRENGTH.value: '#2E86AB',
         IndicatorType.MOMENTUM.value: '#A23B72',
         IndicatorType.VOLUME_ANALYSIS.value: '#3BB273',
         IndicatorType.VOLATILITY.value: '#F18F01',
         IndicatorType.MARKET_SENTIMENT.value: '#6C757D',
-        IndicatorType.PRICE_STRUCTURE.value: '#8F2D56'
+        IndicatorType.PRICE_STRUCTURE.value: '#8F2D56',
+        IndicatorType.SUPPORT_RESISTANCE.value: '#6A4C93'
     }
     
     # أسماء المؤشرات للعرض
@@ -185,17 +190,19 @@ class AppConfig:
         IndicatorType.VOLUME_ANALYSIS.value: 'تحليل الحجم',
         IndicatorType.VOLATILITY.value: 'التقلب',
         IndicatorType.MARKET_SENTIMENT.value: 'معنويات السوق',
-        IndicatorType.PRICE_STRUCTURE.value: 'هيكل السعر'
+        IndicatorType.PRICE_STRUCTURE.value: 'هيكل السعر',
+        IndicatorType.SUPPORT_RESISTANCE.value: 'الدعم والمقاومة'
     }
     
-    # أوصاف المؤشرات
+    # أوصاف المؤشرات المحسنة
     INDICATOR_DESCRIPTIONS = {
-        IndicatorType.TREND_STRENGTH.value: 'يقيس قوة واتجاه الاتجاه العام بناءً على المتوسطات المتحركة',
-        IndicatorType.MOMENTUM.value: 'يقيس سرعة وقوة حركة السعر باستخدام RSI ومعدل التغير',
-        IndicatorType.VOLUME_ANALYSIS.value: 'يحلل نشاط التداول وعلاقة الحجم بحركة السعر',
-        IndicatorType.VOLATILITY.value: 'يقيس مستوى التقلب باستخدام نطاقات بولينجر',
-        IndicatorType.MARKET_SENTIMENT.value: 'يعكس المشاعر العامة للسوق باستخدام مؤشر الخوف والجشع',
-        IndicatorType.PRICE_STRUCTURE.value: 'يحلل هيكل السعر وأنماط الشموع الحديثة'
+        IndicatorType.TREND_STRENGTH.value: 'يقيس قوة واتجاه الاتجاه العام باستخدام متعدد المتوسطات المتحركة والانحدار الخطي',
+        IndicatorType.MOMENTUM.value: 'يقيس سرعة وقوة حركة السعر باستخدام RSI المتعدد، Stochastic، ومعدل التغير',
+        IndicatorType.VOLUME_ANALYSIS.value: 'يحلل نشاط التداول وعلاقة الحجم بحركة السعر مع OBV ومؤشرات الحجم المتقدمة',
+        IndicatorType.VOLATILITY.value: 'يقيس مستوى التقلب باستخدام نطاقات بولينجر المتعددة والانحراف المعياري الديناميكي',
+        IndicatorType.MARKET_SENTIMENT.value: 'يعكس المشاعر العامة للسوق باستخدام مؤشر الخوف والجشع وتدفق الأموال',
+        IndicatorType.PRICE_STRUCTURE.value: 'يحلل هيكل السعر وأنماط الشموع الحديثة مع مؤشرات القوة النسبية',
+        IndicatorType.SUPPORT_RESISTANCE.value: 'يحدد مستويات الدعم والمقاومة القريبة ويحسب احتمالية الاختراق'
     }
 
 
@@ -292,7 +299,7 @@ class BinanceDataFetcher(DataFetcher):
             logger.error(f"فشل تهيئة اتصال Binance: {e}")
             raise
     
-    def validate_ohlcv_data(self, df: pd.DataFrame, min_rows: int = 50) -> bool:
+    def validate_ohlcv_data(self, df: pd.DataFrame, min_rows: int = 100) -> bool:
         """التحقق من صحة بيانات OHLCV"""
         if df is None or df.empty:
             return False
@@ -312,9 +319,14 @@ class BinanceDataFetcher(DataFetcher):
         if (df['high'] < df['low']).any() or (df['close'] > df['high']).any() or (df['close'] < df['low']).any():
             return False
         
+        # التحقق من الاستقرار الإحصائي
+        price_std = df['close'].std()
+        if price_std == 0:
+            return False
+        
         return True
     
-    def get_ohlcv(self, symbol: str, timeframe: str = '1h', limit: int = 200) -> Optional[pd.DataFrame]:
+    def get_ohlcv(self, symbol: str, timeframe: str = '1h', limit: int = 500) -> Optional[pd.DataFrame]:
         """جلب بيانات OHLCV مع التحقق"""
         try:
             def fetch():
@@ -340,6 +352,25 @@ class BinanceDataFetcher(DataFetcher):
             logger.error(f"خطأ غير متوقع في جلب بيانات OHLCV لـ {symbol}: {e}")
             return None
     
+    def get_multiple_timeframes(self, symbol: str) -> Dict[str, pd.DataFrame]:
+        """جلب بيانات متعددة الإطار الزمني"""
+        timeframes = {
+            '1h': 200,
+            '4h': 150,
+            '15m': 100
+        }
+        
+        data = {}
+        for tf, limit in timeframes.items():
+            try:
+                df = self.get_ohlcv(symbol, tf, limit)
+                if df is not None and len(df) > 50:
+                    data[tf] = df
+            except Exception as e:
+                logger.warning(f"خطأ في جلب بيانات {tf} لـ {symbol}: {e}")
+        
+        return data
+    
     def get_ticker(self, symbol: str) -> Optional[Dict]:
         """جلب بيانات التاكر مع التحقق"""
         try:
@@ -347,9 +378,13 @@ class BinanceDataFetcher(DataFetcher):
                 ticker = self.exchange.fetch_ticker(symbol)
                 
                 # التحقق الأساسي للبيانات
-                required_fields = ['last', 'percentage', 'high', 'low', 'quoteVolume']
+                required_fields = ['last', 'percentage', 'high', 'low', 'quoteVolume', 'bid', 'ask']
                 if not all(field in ticker for field in required_fields):
                     raise DataValidationError(f"بيانات التاكر غير مكتملة لـ {symbol}")
+                
+                # حساب سيولة السوق
+                spread = (ticker['ask'] - ticker['bid']) / ticker['bid'] * 100
+                ticker['spread'] = spread
                 
                 return ticker
             
@@ -372,9 +407,12 @@ class BinanceDataFetcher(DataFetcher):
                 'change': ticker.get('percentage', 0.0),
                 'high': ticker.get('high', 0.0),
                 'low': ticker.get('low', 0.0),
-                'volume': ticker.get('quoteVolume', 0.0)
+                'volume': ticker.get('quoteVolume', 0.0),
+                'bid': ticker.get('bid', 0.0),
+                'ask': ticker.get('ask', 0.0),
+                'spread': ticker.get('spread', 0.0)
             }
-        return {'change': 0.0, 'high': 0.0, 'low': 0.0, 'volume': 0.0}
+        return {'change': 0.0, 'high': 0.0, 'low': 0.0, 'volume': 0.0, 'bid': 0.0, 'ask': 0.0, 'spread': 0.0}
 
 
 class FearGreedIndexFetcher(DataFetcher):
@@ -385,13 +423,15 @@ class FearGreedIndexFetcher(DataFetcher):
         self.last_value = 50
         self.last_update = None
         self.cache_duration = 300  # 5 دقائق بالثواني
+        self.history_values = []
+        self.max_history = 10
     
-    def get_index(self) -> Tuple[float, int]:
-        """جلب قيمة المؤشر مع التخزين المؤقت"""
+    def get_index(self) -> Tuple[float, int, str]:
+        """جلب قيمة المؤشر مع التخزين المؤقت والاتجاه"""
         # التحقق من التخزين المؤقت
         if (self.last_update and 
             (datetime.now() - self.last_update).total_seconds() < self.cache_duration):
-            return self._convert_to_score(self.last_value), self.last_value
+            return self._convert_to_score(self.last_value), self.last_value, self._get_trend()
         
         try:
             def fetch():
@@ -415,89 +455,156 @@ class FearGreedIndexFetcher(DataFetcher):
             
             fgi_value = self.fetch_with_retry(fetch)
             
+            # تحديث التاريخ
+            self.history_values.append(fgi_value)
+            if len(self.history_values) > self.max_history:
+                self.history_values.pop(0)
+            
             # تحديث التخزين المؤقت
             self.last_value = fgi_value
             self.last_update = datetime.now()
             
-            return self._convert_to_score(fgi_value), fgi_value
+            return self._convert_to_score(fgi_value), fgi_value, self._get_trend()
             
         except Exception as e:
             logger.error(f"خطأ في جلب مؤشر الخوف والجشع: {e}")
             # استخدام القيمة المخزنة مؤقتاً إذا فشل الجلب
-            return self._convert_to_score(self.last_value), self.last_value
+            return self._convert_to_score(self.last_value), self.last_value, self._get_trend()
     
     def _convert_to_score(self, fgi_value: int) -> float:
-        """تحويل قيمة FGI إلى درجة 0-1"""
-        # 0 = خوف شديد (إشارة شراء) = 1.0
-        # 50 = محايد = 0.5
-        # 100 = جشع شديد (إشارة بيع) = 0.0
-        return 1.0 - (fgi_value / 100)
+        """تحويل قيمة FGI إلى درجة 0-1 محسنة"""
+        # تحويل غير خطي يعكس سلوك السوق بشكل أفضل
+        if fgi_value <= 20:  # خوف شديد
+            return 0.95 + (20 - fgi_value) * 0.0025
+        elif fgi_value <= 40:  # خوف
+            return 0.85 - (40 - fgi_value) * 0.01
+        elif fgi_value <= 60:  # محايد
+            return 0.55 - (60 - fgi_value) * 0.01
+        elif fgi_value <= 80:  # جشع
+            return 0.35 - (80 - fgi_value) * 0.01
+        else:  # جشع شديد
+            return 0.15 - (100 - fgi_value) * 0.0025
+    
+    def _get_trend(self) -> str:
+        """الحصول على اتجاه المؤشر"""
+        if len(self.history_values) < 2:
+            return "ثابت"
+        
+        if self.history_values[-1] > self.history_values[-2]:
+            return "صاعد"
+        elif self.history_values[-1] < self.history_values[-2]:
+            return "هابط"
+        else:
+            return "ثابت"
 
 
 class IndicatorsCalculator:
-    """حساب المؤشرات مع التحقق من الصحة"""
+    """حساب المؤشرات المحسنة مع تحليل متقدم"""
     
     @staticmethod
     def validate_score(score: float, indicator_name: str) -> float:
         """التحقق من صحة النتيجة وتطبيعها"""
-        if score is None or np.isnan(score):
+        if score is None or np.isnan(score) or np.isinf(score):
             logger.warning(f"نتيجة {indicator_name} غير صالحة، استخدام القيمة الافتراضية")
             return 0.5
         
-        # تطبيع بين 0 و1
+        # تطبيع بين 0 و1 مع تدرج سلس
         normalized = max(0.0, min(1.0, float(score)))
         return normalized
     
     @staticmethod
-    def calculate_trend_strength(df: pd.DataFrame, periods: List[int] = None) -> float:
-        """حساب قوة الاتجاه"""
-        if periods is None:
-            periods = [20, 50, 200]
-        
+    def calculate_trend_strength(df: pd.DataFrame, multiple_tf_data: Dict[str, pd.DataFrame] = None) -> float:
+        """حساب قوة الاتجاه المحسن"""
         try:
-            if len(df) < max(periods):
+            if len(df) < 100:
                 return 0.5
             
             current_price = df['close'].iloc[-1]
-            scores = []
-            weights = []
             
-            for i, period in enumerate(periods):
+            # 1. تحليل متعدد المتوسطات المتحركة
+            ma_periods = [9, 21, 50, 100, 200]
+            ma_scores = []
+            ma_weights = []
+            
+            for i, period in enumerate(ma_periods):
                 if len(df) >= period:
                     sma = df['close'].rolling(window=period).mean().iloc[-1]
+                    ema = df['close'].ewm(span=period, adjust=False).mean().iloc[-1]
                     
                     if pd.notna(sma) and sma > 0:
-                        # حساب المسافة النسبية
-                        distance_pct = ((current_price - sma) / sma) * 100
+                        # حساب المسافة النسبية مع معايرة دقيقة
+                        price_to_sma = current_price / sma
+                        price_to_ema = current_price / ema
                         
-                        # تحويل المسافة إلى درجة
-                        if distance_pct > 15:
-                            score = 1.0  # فوق المتوسط بكثير
-                        elif distance_pct > 8:
-                            score = 0.8
-                        elif distance_pct > 3:
-                            score = 0.6
-                        elif distance_pct > -3:
-                            score = 0.5
-                        elif distance_pct > -8:
-                            score = 0.4
-                        elif distance_pct > -15:
-                            score = 0.2
+                        # تسجيل الاتجاه (SMA فوق/تحت)
+                        ma_position_score = 1.0 if price_to_sma > 1.0 else 0.0
+                        
+                        # حساب الزخم النسبي
+                        if period >= 20:
+                            sma_prev = df['close'].rolling(window=period).mean().iloc[-2]
+                            ema_prev = df['close'].ewm(span=period, adjust=False).mean().iloc[-2]
+                            sma_momentum = (sma - sma_prev) / sma_prev if sma_prev > 0 else 0
+                            ema_momentum = (ema - ema_prev) / ema_prev if ema_prev > 0 else 0
+                            momentum_score = (sma_momentum + ema_momentum) * 500  # تكبير للتأثير
                         else:
-                            score = 0.0  # تحت المتوسط بكثير
+                            momentum_score = 0
                         
-                        # وزن أقل للفترات الأطول
-                        weight = 1.0 / (i + 1)
+                        # النتيجة المركبة مع وزن حسب الفترة
+                        period_weight = 1.0 / (i + 1) ** 0.7
+                        score = (0.4 * ma_position_score + 
+                                0.3 * min(1.0, max(0.0, price_to_sma - 0.9) * 10) +
+                                0.3 * min(1.0, max(0.0, 0.5 + momentum_score)))
                         
-                        scores.append(score)
-                        weights.append(weight)
+                        ma_scores.append(score)
+                        ma_weights.append(period_weight)
             
-            if not scores:
-                return 0.5
+            # 2. تحليل الانحدار الخطي للاتجاه
+            if len(df) >= 50:
+                # انحدار قصير المدى (20 فترة)
+                x_short = np.arange(20)
+                y_short = df['close'].tail(20).values
+                slope_short, _ = np.polyfit(x_short, y_short, 1)
+                slope_pct_short = slope_short / y_short[0] if y_short[0] > 0 else 0
+                
+                # انحدار متوسط المدى (50 فترة)
+                x_medium = np.arange(50)
+                y_medium = df['close'].tail(50).values
+                slope_medium, _ = np.polyfit(x_medium, y_medium, 1)
+                slope_pct_medium = slope_medium / y_medium[0] if y_medium[0] > 0 else 0
+                
+                # حساب قوة الاتجاه من الانحدار
+                regression_score = (0.6 * min(1.0, max(0.0, 0.5 + slope_pct_short * 100)) +
+                                  0.4 * min(1.0, max(0.0, 0.5 + slope_pct_medium * 50)))
+            else:
+                regression_score = 0.5
             
-            # حساب المتوسط المرجح
-            weighted_avg = np.average(scores, weights=weights)
-            return IndicatorsCalculator.validate_score(weighted_avg, "قوة الاتجاه")
+            # 3. تحليل الاتجاه عبر أطر زمنية متعددة
+            multi_tf_score = 0.5
+            if multiple_tf_data:
+                tf_scores = []
+                for tf, tf_df in multiple_tf_data.items():
+                    if len(tf_df) > 50:
+                        tf_current = tf_df['close'].iloc[-1]
+                        tf_sma_20 = tf_df['close'].rolling(window=20).mean().iloc[-1]
+                        if tf_sma_20 > 0:
+                            tf_score = 1.0 if tf_current > tf_sma_20 else 0.0
+                            tf_scores.append(tf_score)
+                
+                if tf_scores:
+                    multi_tf_score = np.mean(tf_scores)
+            
+            # 4. حساب النهائي المركب
+            if ma_scores:
+                ma_weighted = np.average(ma_scores, weights=ma_weights)
+                
+                # دمج جميع المؤشرات
+                final_score = (0.45 * ma_weighted + 
+                             0.30 * regression_score + 
+                             0.25 * multi_tf_score)
+            else:
+                final_score = 0.5
+            
+            return IndicatorsCalculator.validate_score(final_score, "قوة الاتجاه")
             
         except Exception as e:
             logger.error(f"خطأ في حساب قوة الاتجاه: {e}")
@@ -505,62 +612,109 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_momentum(df: pd.DataFrame) -> float:
-        """حساب الزخم"""
+        """حساب الزخم المحسن"""
         try:
-            if len(df) < 30:
+            if len(df) < 50:
                 return 0.5
             
-            # حساب RSI
-            delta = df['close'].diff()
-            gain = delta.where(delta > 0, 0)
-            loss = -delta.where(delta < 0, 0)
+            # 1. RSI متعدد الفترات
+            rsi_scores = []
+            rsi_weights = []
             
-            avg_gain = gain.rolling(window=14).mean()
-            avg_loss = loss.rolling(window=14).mean()
-            
-            rs = avg_gain / avg_loss
-            rsi = 100 - (100 / (1 + rs))
-            rsi_value = rsi.iloc[-1] if not rsi.empty else 50
-            
-            # تطبيع RSI (30=1.0, 70=0.0, خطي بينهما)
-            if rsi_value <= 30:
-                rsi_score = 1.0
-            elif rsi_value >= 70:
-                rsi_score = 0.0
-            else:
-                rsi_score = 1.0 - ((rsi_value - 30) / 40)
-            
-            # حساب معدل التغير
-            roc_scores = []
             for period in [7, 14, 21]:
+                if len(df) >= period * 2:
+                    delta = df['close'].diff()
+                    gain = delta.where(delta > 0, 0)
+                    loss = -delta.where(delta < 0, 0)
+                    
+                    avg_gain = gain.rolling(window=period).mean()
+                    avg_loss = loss.rolling(window=period).mean()
+                    
+                    rs = avg_gain / avg_loss
+                    rsi = 100 - (100 / (1 + rs))
+                    rsi_value = rsi.iloc[-1] if not rsi.empty else 50
+                    
+                    # تحويل RSI إلى درجة غير خطية
+                    if rsi_value <= 25:
+                        score = 0.95 + (25 - rsi_value) * 0.002
+                    elif rsi_value <= 40:
+                        score = 0.85 - (40 - rsi_value) * 0.02
+                    elif rsi_value <= 60:
+                        score = 0.55 - (60 - rsi_value) * 0.02
+                    elif rsi_value <= 75:
+                        score = 0.25 - (75 - rsi_value) * 0.02
+                    else:
+                        score = 0.05 - (100 - rsi_value) * 0.002
+                    
+                    rsi_scores.append(score)
+                    rsi_weights.append(1.0 / period)
+            
+            rsi_final = np.average(rsi_scores, weights=rsi_weights) if rsi_scores else 0.5
+            
+            # 2. Stochastic RSI محسن
+            if len(df) >= 21:
+                # حساب RSI أولاً
+                delta = df['close'].diff()
+                gain = delta.where(delta > 0, 0)
+                loss = -delta.where(delta < 0, 0)
+                avg_gain = gain.rolling(window=14).mean()
+                avg_loss = loss.rolling(window=14).mean()
+                rs = avg_gain / avg_loss
+                rsi = 100 - (100 / (1 + rs))
+                
+                # حساب Stochastic على RSI
+                rsi_low = rsi.rolling(window=14).min()
+                rsi_high = rsi.rolling(window=14).max()
+                stoch_rsi = 100 * (rsi - rsi_low) / (rsi_high - rsi_low)
+                stoch_value = stoch_rsi.iloc[-1] if not stoch_rsi.empty else 50
+                
+                # تحويل Stochastic RSI
+                if stoch_value <= 20:
+                    stoch_score = 0.9
+                elif stoch_value <= 30:
+                    stoch_score = 0.7
+                elif stoch_value <= 70:
+                    stoch_score = 0.5
+                elif stoch_value <= 80:
+                    stoch_score = 0.3
+                else:
+                    stoch_score = 0.1
+            else:
+                stoch_score = 0.5
+            
+            # 3. معدل التغير (ROC) متعدد الفترات
+            roc_scores = []
+            for period in [3, 7, 14, 21]:
                 if len(df) >= period:
                     roc = ((df['close'].iloc[-1] - df['close'].iloc[-period]) / 
                            df['close'].iloc[-period]) * 100
                     
-                    # تحويل ROC إلى درجة
-                    if roc > 10:
-                        roc_score = 1.0
-                    elif roc > 5:
-                        roc_score = 0.8
-                    elif roc > 2:
-                        roc_score = 0.6
-                    elif roc > -2:
-                        roc_score = 0.5
-                    elif roc > -5:
-                        roc_score = 0.4
-                    elif roc > -10:
-                        roc_score = 0.2
-                    else:
-                        roc_score = 0.0
-                    
+                    # تحويل ROC إلى درجة مع منحنى سيجمويد
+                    roc_normalized = roc / 20  # تقسيم للحصول على نطاق معقول
+                    roc_score = 1.0 / (1.0 + math.exp(-roc_normalized))
                     roc_scores.append(roc_score)
             
-            roc_avg = np.mean(roc_scores) if roc_scores else 0.5
+            roc_final = np.mean(roc_scores) if roc_scores else 0.5
             
-            # دمج RSI وROC
-            momentum_score = (rsi_score * 0.6) + (roc_avg * 0.4)
+            # 4. مؤشر الزخم المطلق
+            momentum_periods = [5, 10, 20]
+            momentum_scores = []
+            for period in momentum_periods:
+                if len(df) >= period:
+                    momentum = df['close'].iloc[-1] - df['close'].iloc[-period]
+                    momentum_pct = momentum / df['close'].iloc[-period] if df['close'].iloc[-period] > 0 else 0
+                    momentum_score = 1.0 / (1.0 + math.exp(-momentum_pct * 100))
+                    momentum_scores.append(momentum_score)
             
-            return IndicatorsCalculator.validate_score(momentum_score, "الزخم")
+            momentum_final = np.mean(momentum_scores) if momentum_scores else 0.5
+            
+            # 5. حساب النتيجة النهائية المرجحة
+            final_score = (0.35 * rsi_final + 
+                         0.25 * stoch_score + 
+                         0.25 * roc_final + 
+                         0.15 * momentum_final)
+            
+            return IndicatorsCalculator.validate_score(final_score, "الزخم")
             
         except Exception as e:
             logger.error(f"خطأ في حساب الزخم: {e}")
@@ -568,59 +722,113 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_volume_analysis(df: pd.DataFrame, price_change_24h: float = 0) -> float:
-        """تحليل الحجم"""
+        """تحليل الحجم المحسن"""
         try:
-            if len(df) < 20:
+            if len(df) < 40:
                 return 0.5
             
             current_volume = df['volume'].iloc[-1]
+            current_price = df['close'].iloc[-1]
+            prev_price = df['close'].iloc[-2]
+            price_change = ((current_price - prev_price) / prev_price) * 100
             
-            # متوسطات الحجم
-            avg_volume_7 = df['volume'].tail(7).mean()
-            avg_volume_20 = df['volume'].tail(20).mean()
+            # 1. مؤشر OBV (On-Balance Volume) محسن
+            obv = 0
+            price_changes = df['close'].diff()
+            volumes = df['volume']
             
-            if avg_volume_20 == 0:
-                return 0.5
+            for i in range(1, min(50, len(df))):
+                if price_changes.iloc[i] > 0:
+                    obv += volumes.iloc[i]
+                elif price_changes.iloc[i] < 0:
+                    obv -= volumes.iloc[i]
             
-            # نسبة الحجم
-            volume_ratio_20 = current_volume / avg_volume_20
+            # حساب OBV السلس
+            obv_sma = pd.Series([obv]).rolling(window=10).mean().iloc[-1] if len(df) >= 10 else obv
             
-            # تحليل علاقة الحجم بالسعر
-            price_change = ((df['close'].iloc[-1] - df['close'].iloc[-2]) / 
-                           df['close'].iloc[-2]) * 100
-            
-            # حساب درجة الحجم
-            if volume_ratio_20 > 2.5:
-                # حجم عالي جداً
-                if price_change > 2:
-                    volume_score = 1.0  # حجم شرائي قوي
-                elif price_change < -2:
-                    volume_score = 0.0  # حجم بيعي قوي
+            # تحويل OBV إلى درجة
+            if len(df) >= 20:
+                obv_avg = abs(df['volume'].tail(20).mean())
+                if obv_avg > 0:
+                    obv_ratio = obv_sma / obv_avg
+                    if obv_ratio > 1.5:
+                        obv_score = 0.9
+                    elif obv_ratio > 1.2:
+                        obv_score = 0.7
+                    elif obv_ratio > 0.8:
+                        obv_score = 0.5
+                    elif obv_ratio > 0.5:
+                        obv_score = 0.3
+                    else:
+                        obv_score = 0.1
                 else:
-                    volume_score = 0.7
-            elif volume_ratio_20 > 1.8:
-                if price_change > 1:
-                    volume_score = 0.8
-                elif price_change < -1:
-                    volume_score = 0.2
-                else:
-                    volume_score = 0.6
-            elif volume_ratio_20 > 1.3:
-                volume_score = 0.55
-            elif volume_ratio_20 > 0.7:
-                volume_score = 0.5
-            elif volume_ratio_20 > 0.4:
-                volume_score = 0.45
+                    obv_score = 0.5
             else:
-                volume_score = 0.3
+                obv_score = 0.5
             
-            # تعديل بناء على تغير السعر في 24 ساعة
-            if price_change_24h > 5 and volume_score > 0.5:
-                volume_score = min(1.0, volume_score + 0.1)
-            elif price_change_24h < -5 and volume_score < 0.5:
-                volume_score = max(0.0, volume_score - 0.1)
+            # 2. نسبة الحجم إلى المتوسطات
+            volume_ratios = []
+            for period in [7, 14, 21]:
+                if len(df) >= period:
+                    avg_volume = df['volume'].tail(period).mean()
+                    if avg_volume > 0:
+                        ratio = current_volume / avg_volume
+                        volume_ratios.append(ratio)
             
-            return IndicatorsCalculator.validate_score(volume_score, "تحليل الحجم")
+            if volume_ratios:
+                avg_ratio = np.mean(volume_ratios)
+                
+                # تحويل النسبة إلى درجة مع مراعاة اتجاه السعر
+                if avg_ratio > 3.0:
+                    base_score = 0.9 if price_change > 0 else 0.1
+                elif avg_ratio > 2.0:
+                    base_score = 0.75 if price_change > 0 else 0.25
+                elif avg_ratio > 1.5:
+                    base_score = 0.6 if price_change > 0 else 0.4
+                elif avg_ratio > 1.0:
+                    base_score = 0.55 if price_change > 0 else 0.45
+                elif avg_ratio > 0.7:
+                    base_score = 0.5
+                elif avg_ratio > 0.5:
+                    base_score = 0.45 if price_change < 0 else 0.55
+                else:
+                    base_score = 0.3 if price_change < 0 else 0.7
+            else:
+                base_score = 0.5
+            
+            # 3. مؤشر توزيع الحجم (VWAP نسبي)
+            if len(df) >= 20:
+                typical_price = (df['high'] + df['low'] + df['close']) / 3
+                vwap = (typical_price * df['volume']).rolling(window=20).sum() / df['volume'].rolling(window=20).sum()
+                current_vwap = vwap.iloc[-1]
+                
+                if current_vwap > 0:
+                    vwap_position = current_price / current_vwap
+                    if vwap_position > 1.02:
+                        vwap_score = 0.8
+                    elif vwap_position > 1.0:
+                        vwap_score = 0.6
+                    elif vwap_position > 0.98:
+                        vwap_score = 0.4
+                    else:
+                        vwap_score = 0.2
+                else:
+                    vwap_score = 0.5
+            else:
+                vwap_score = 0.5
+            
+            # 4. دمج النتائج مع أوزان
+            final_score = (0.40 * base_score + 
+                         0.35 * obv_score + 
+                         0.25 * vwap_score)
+            
+            # 5. تعديل بناء على تغير السعر في 24 ساعة
+            if abs(price_change_24h) > 10:
+                # إذا كان التغير كبير، زيادة تأثير الحجم
+                volume_impact = min(1.0, max(0.0, final_score + (price_change_24h / 100)))
+                final_score = (0.7 * volume_impact + 0.3 * final_score)
+            
+            return IndicatorsCalculator.validate_score(final_score, "تحليل الحجم")
             
         except Exception as e:
             logger.error(f"خطأ في حساب تحليل الحجم: {e}")
@@ -628,57 +836,108 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_volatility(df: pd.DataFrame) -> float:
-        """حساب التقلب"""
+        """حساب التقلب المحسن"""
         try:
-            if len(df) < 20:
+            if len(df) < 50:
                 return 0.5
-            
-            # حساب بولينجر باند
-            sma_20 = df['close'].rolling(window=20).mean()
-            std_20 = df['close'].rolling(window=20).std()
-            
-            upper_band = sma_20 + (std_20 * 2)
-            lower_band = sma_20 - (std_20 * 2)
             
             current_price = df['close'].iloc[-1]
-            current_sma = sma_20.iloc[-1]
             
-            if pd.isna(current_sma) or current_sma == 0:
-                return 0.5
+            # 1. بولينجر باند متعدد المستويات
+            bb_scores = []
             
-            # حساب موقع السعر في النطاق
-            bandwidth = upper_band.iloc[-1] - lower_band.iloc[-1]
+            for std_dev in [1.5, 2.0, 2.5]:
+                if len(df) >= 20:
+                    sma_20 = df['close'].rolling(window=20).mean()
+                    std_20 = df['close'].rolling(window=20).std()
+                    
+                    upper_band = sma_20 + (std_20 * std_dev)
+                    lower_band = sma_20 - (std_20 * std_dev)
+                    
+                    current_sma = sma_20.iloc[-1]
+                    current_upper = upper_band.iloc[-1]
+                    current_lower = lower_band.iloc[-1]
+                    
+                    if current_upper - current_lower > 0:
+                        position = (current_price - current_lower) / (current_upper - current_lower)
+                        
+                        # تحليل الموقع في النطاق
+                        if position > 0.9:
+                            score = 0.1  # قرب المقاومة القوية
+                        elif position > 0.75:
+                            score = 0.3  # قرب المقاومة
+                        elif position > 0.6:
+                            score = 0.45  # منطقة مقاومة محتملة
+                        elif position > 0.4:
+                            score = 0.5  # منطقة محايدة
+                        elif position > 0.25:
+                            score = 0.55  # منطقة دعم محتملة
+                        elif position > 0.1:
+                            score = 0.7  # قرب الدعم
+                        else:
+                            score = 0.9  # قرب الدعم القوي
+                        
+                        bb_scores.append(score)
             
-            if bandwidth > 0:
-                position = (current_price - lower_band.iloc[-1]) / bandwidth
+            bb_final = np.mean(bb_scores) if bb_scores else 0.5
+            
+            # 2. نسبة التقلب التاريخي
+            volatility_scores = []
+            for period in [10, 20, 30]:
+                if len(df) >= period:
+                    returns = df['close'].pct_change().tail(period)
+                    hist_volatility = returns.std() * math.sqrt(365)  # سنوي
+                    
+                    # تحويل التقلب التاريخي إلى درجة
+                    if hist_volatility > 1.0:
+                        vol_score = 0.2  # تقلب عالي جداً - خطير
+                    elif hist_volatility > 0.7:
+                        vol_score = 0.3
+                    elif hist_volatility > 0.4:
+                        vol_score = 0.5
+                    elif hist_volatility > 0.2:
+                        vol_score = 0.7
+                    else:
+                        vol_score = 0.9  # تقلب منخفض - فرصة جيدة
+                    
+                    volatility_scores.append(vol_score)
+            
+            hist_vol_final = np.mean(volatility_scores) if volatility_scores else 0.5
+            
+            # 3. مؤشر نطاق التداول (ATR نسبي)
+            if len(df) >= 14:
+                high_low = df['high'] - df['low']
+                high_close = abs(df['high'] - df['close'].shift())
+                low_close = abs(df['low'] - df['close'].shift())
+                
+                true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+                atr = true_range.rolling(window=14).mean()
+                current_atr = atr.iloc[-1]
+                
+                if current_price > 0:
+                    atr_percent = (current_atr / current_price) * 100
+                    
+                    if atr_percent > 5:
+                        atr_score = 0.2
+                    elif atr_percent > 3:
+                        atr_score = 0.35
+                    elif atr_percent > 1.5:
+                        atr_score = 0.5
+                    elif atr_percent > 0.7:
+                        atr_score = 0.65
+                    else:
+                        atr_score = 0.8
+                else:
+                    atr_score = 0.5
             else:
-                position = 0.5
+                atr_score = 0.5
             
-            # حساب درجة التقلب
-            if position > 0.85:
-                # قرب النطاق العلوي - احتمال تصحيح
-                score = 0.2
-            elif position > 0.7:
-                score = 0.35
-            elif position > 0.3:
-                score = 0.5
-            elif position > 0.15:
-                score = 0.65
-            else:
-                # قرب النطاق السفلي - احتمال ارتداد
-                score = 0.8
+            # 4. دمج النتائج
+            final_score = (0.40 * bb_final + 
+                         0.35 * hist_vol_final + 
+                         0.25 * atr_score)
             
-            # تعديل بناء على عرض النطاق (مستوى التقلب)
-            volatility_ratio = std_20.iloc[-1] / current_sma
-            
-            if volatility_ratio > 0.04:
-                # تقلب عالي جداً - مخاطرة عالية
-                score = score * 0.8
-            elif volatility_ratio > 0.02:
-                # تقلب متوسط
-                score = score * 0.9
-            
-            return IndicatorsCalculator.validate_score(score, "التقلب")
+            return IndicatorsCalculator.validate_score(final_score, "التقلب")
             
         except Exception as e:
             logger.error(f"خطأ في حساب التقلب: {e}")
@@ -686,63 +945,234 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_price_structure(df: pd.DataFrame) -> float:
-        """تحليل هيكل السعر"""
+        """تحليل هيكل السعر المحسن"""
         try:
-            if len(df) < 10:
+            if len(df) < 20:
                 return 0.5
             
-            # تحليل آخر 5 شموع
-            recent_candles = df.tail(5)
+            # 1. تحليل الشموع المتقدم (آخر 10 شموع)
+            recent_candles = df.tail(10)
+            candle_analysis_scores = []
             
-            # حساب قوة الشموع
-            candle_strengths = []
-            for _, row in recent_candles.iterrows():
-                body_size = abs(row['close'] - row['open'])
-                total_range = row['high'] - row['low']
+            for i in range(len(recent_candles)):
+                candle = recent_candles.iloc[i]
+                open_price = candle['open']
+                close_price = candle['close']
+                high_price = candle['high']
+                low_price = candle['low']
+                
+                # حساب قوة الشمعة
+                body_size = abs(close_price - open_price)
+                total_range = high_price - low_price
                 
                 if total_range > 0:
-                    strength = body_size / total_range
-                    # شمعة صاعدة موجبة، هابطة سالبة
-                    if row['close'] > row['open']:
-                        candle_strengths.append(strength)
+                    body_ratio = body_size / total_range
+                    
+                    # تحديد نوع الشمعة
+                    if close_price > open_price:  # شمعة صاعدة
+                        if body_ratio > 0.7:
+                            candle_strength = 0.9  # شمعة صاعدة قوية
+                        elif body_ratio > 0.4:
+                            candle_strength = 0.7  # شمعة صاعدة متوسطة
+                        else:
+                            candle_strength = 0.6  # شمعة دوجي صاعدة
+                    else:  # شمعة هابطة
+                        if body_ratio > 0.7:
+                            candle_strength = 0.1  # شمعة هابطة قوية
+                        elif body_ratio > 0.4:
+                            candle_strength = 0.3  # شمعة هابطة متوسطة
+                        else:
+                            candle_strength = 0.4  # شمعة دوجي هابطة
+                    
+                    # حساب ظلال الشمعة
+                    upper_shadow = high_price - max(open_price, close_price)
+                    lower_shadow = min(open_price, close_price) - low_price
+                    
+                    if upper_shadow > body_size * 2 and lower_shadow < body_size * 0.5:
+                        candle_strength *= 0.8  # مقاومة قوية
+                    elif lower_shadow > body_size * 2 and upper_shadow < body_size * 0.5:
+                        candle_strength *= 1.2  # دعم قوي
+                    
+                    candle_analysis_scores.append(candle_strength)
+            
+            candle_score = np.mean(candle_analysis_scores) if candle_analysis_scores else 0.5
+            
+            # 2. تحليل الهيكل السعري (العاليات والمنخفضات)
+            if len(df) >= 30:
+                # العثور على القمم والقيعان المحلية
+                highs = []
+                lows = []
+                
+                for i in range(5, len(df) - 5):
+                    if (df['high'].iloc[i] == df['high'].iloc[i-5:i+6].max() and
+                        df['high'].iloc[i] > df['high'].iloc[i-1] and
+                        df['high'].iloc[i] > df['high'].iloc[i+1]):
+                        highs.append(df['high'].iloc[i])
+                    
+                    if (df['low'].iloc[i] == df['low'].iloc[i-5:i+6].min() and
+                        df['low'].iloc[i] < df['low'].iloc[i-1] and
+                        df['low'].iloc[i] < df['low'].iloc[i+1]):
+                        lows.append(df['low'].iloc[i])
+                
+                current_price = df['close'].iloc[-1]
+                
+                # حساب موقع السعر بالنسبة للهيكل
+                if highs and lows:
+                    recent_high = max(highs[-3:]) if len(highs) >= 3 else max(highs)
+                    recent_low = min(lows[-3:]) if len(lows) >= 3 else min(lows)
+                    
+                    if recent_high - recent_low > 0:
+                        structure_position = (current_price - recent_low) / (recent_high - recent_low)
+                        
+                        if structure_position > 0.8:
+                            structure_score = 0.3  # قرب قمة جديدة
+                        elif structure_position > 0.6:
+                            structure_score = 0.45
+                        elif structure_position > 0.4:
+                            structure_score = 0.55
+                        elif structure_position > 0.2:
+                            structure_score = 0.65
+                        else:
+                            structure_score = 0.8  # قرب قاع جديد
                     else:
-                        candle_strengths.append(-strength)
-            
-            avg_candle_strength = np.mean(candle_strengths) if candle_strengths else 0
-            
-            # تحليل القمم والقيعان
-            recent_high = recent_candles['high'].max()
-            recent_low = recent_candles['low'].min()
-            current_price = df['close'].iloc[-1]
-            
-            if (recent_high - recent_low) > 0:
-                price_position = (current_price - recent_low) / (recent_high - recent_low)
+                        structure_score = 0.5
+                else:
+                    structure_score = 0.5
             else:
-                price_position = 0.5
+                structure_score = 0.5
             
-            # حساب النتيجة النهائية
-            base_score = 0.5
+            # 3. تحليل تقاطع الأسعار
+            if len(df) >= 10:
+                price_cross_scores = []
+                
+                # تحليل تقاطعات قصيرة المدى
+                for i in range(1, 6):
+                    if len(df) >= i + 5:
+                        current = df['close'].iloc[-1]
+                        prev = df['close'].iloc[-i-1]
+                        
+                        if current > prev:
+                            cross_score = 0.6 + (0.4 / i)  # كلما كان التقاطع أحدث، كلما زادت النتيجة
+                        elif current < prev:
+                            cross_score = 0.4 - (0.4 / i)
+                        else:
+                            cross_score = 0.5
+                        
+                        price_cross_scores.append(cross_score)
+                
+                cross_final = np.mean(price_cross_scores) if price_cross_scores else 0.5
+            else:
+                cross_final = 0.5
             
-            # تأثير قوة الشموع
-            if avg_candle_strength > 0.3:
-                base_score += 0.15
-            elif avg_candle_strength > 0.1:
-                base_score += 0.08
-            elif avg_candle_strength < -0.3:
-                base_score -= 0.15
-            elif avg_candle_strength < -0.1:
-                base_score -= 0.08
+            # 4. حساب النتيجة النهائية
+            final_score = (0.40 * candle_score + 
+                         0.35 * structure_score + 
+                         0.25 * cross_final)
             
-            # تأثير موقع السعر
-            if price_position > 0.8:
-                base_score -= 0.1  # قرب المقاومة
-            elif price_position < 0.2:
-                base_score += 0.1  # قرب الدعم
-            
-            return IndicatorsCalculator.validate_score(base_score, "هيكل السعر")
+            return IndicatorsCalculator.validate_score(final_score, "هيكل السعر")
             
         except Exception as e:
             logger.error(f"خطأ في حساب هيكل السعر: {e}")
+            return 0.5
+    
+    @staticmethod
+    def calculate_support_resistance(df: pd.DataFrame) -> float:
+        """تحليل الدعم والمقاومة المحسن"""
+        try:
+            if len(df) < 50:
+                return 0.5
+            
+            current_price = df['close'].iloc[-1]
+            
+            # 1. تحديد مستويات الدعم والمقاومة من القمم والقيعان
+            support_levels = []
+            resistance_levels = []
+            
+            # البحث عن القيعان (الدعم)
+            for i in range(20, len(df) - 5):
+                if (df['low'].iloc[i] == df['low'].iloc[i-20:i+6].min() and
+                    df['low'].iloc[i] < df['low'].iloc[i-1] and
+                    df['low'].iloc[i] < df['low'].iloc[i+1]):
+                    support_levels.append(df['low'].iloc[i])
+            
+            # البحث عن القمم (المقاومة)
+            for i in range(20, len(df) - 5):
+                if (df['high'].iloc[i] == df['high'].iloc[i-20:i+6].max() and
+                    df['high'].iloc[i] > df['high'].iloc[i-1] and
+                    df['high'].iloc[i] > df['high'].iloc[i+1]):
+                    resistance_levels.append(df['high'].iloc[i])
+            
+            # 2. حساب أقرب مستويات الدعم والمقاومة
+            closest_support = None
+            closest_resistance = None
+            
+            for level in sorted(support_levels, reverse=True):
+                if level < current_price:
+                    closest_support = level
+                    break
+            
+            for level in sorted(resistance_levels):
+                if level > current_price:
+                    closest_resistance = level
+                    break
+            
+            # 3. حساب نسبة القرب من المستويات
+            if closest_support and closest_resistance:
+                price_range = closest_resistance - closest_support
+                if price_range > 0:
+                    position_from_support = (current_price - closest_support) / price_range
+                    
+                    # تحويل الموقع إلى درجة
+                    if position_from_support < 0.2:
+                        position_score = 0.85  # قريب جداً من الدعم
+                    elif position_from_support < 0.4:
+                        position_score = 0.70
+                    elif position_from_support < 0.6:
+                        position_score = 0.50
+                    elif position_from_support < 0.8:
+                        position_score = 0.30
+                    else:
+                        position_score = 0.15  # قريب جداً من المقاومة
+                else:
+                    position_score = 0.5
+            else:
+                position_score = 0.5
+            
+            # 4. تحليل قوة المستويات بناءً على عدد المرات التي تم اختبارها
+            support_strength = 0
+            resistance_strength = 0
+            
+            if closest_support and len(df) > 50:
+                # حساب عدد المرات التي تم فيها اختبار مستوى الدعم
+                support_tests = 0
+                for i in range(max(0, len(df) - 100), len(df)):
+                    if abs(df['low'].iloc[i] - closest_support) / closest_support < 0.01:  # ضمن 1%
+                        support_tests += 1
+                
+                support_strength = min(1.0, support_tests / 10)  # قوة تصل إلى 1.0 بعد 10 اختبارات
+            
+            if closest_resistance and len(df) > 50:
+                # حساب عدد المرات التي تم فيها اختبار مستوى المقاومة
+                resistance_tests = 0
+                for i in range(max(0, len(df) - 100), len(df)):
+                    if abs(df['high'].iloc[i] - closest_resistance) / closest_resistance < 0.01:  # ضمن 1%
+                        resistance_tests += 1
+                
+                resistance_strength = min(1.0, resistance_tests / 10)
+            
+            # 5. حساب النتيجة النهائية
+            strength_factor = 1.0
+            if position_score > 0.6:  # قرب الدعم
+                strength_factor += support_strength * 0.3
+            elif position_score < 0.4:  # قرب المقاومة
+                strength_factor -= resistance_strength * 0.3
+            
+            final_score = position_score * strength_factor
+            
+            return IndicatorsCalculator.validate_score(final_score, "الدعم والمقاومة")
+            
+        except Exception as e:
+            logger.error(f"خطأ في حساب الدعم والمقاومة: {e}")
             return 0.5
 
 
@@ -801,13 +1231,13 @@ class SignalProcessor:
     @staticmethod
     def get_signal_strength(percentage: float) -> str:
         """تحديد قوة الإشارة"""
-        if percentage >= 80:
+        if percentage >= 85:
             return "قوية جداً"
-        elif percentage >= 65:
+        elif percentage >= 70:
             return "قوية"
-        elif percentage >= 55:
+        elif percentage >= 58:
             return "متوسطة"
-        elif percentage >= 45:
+        elif percentage >= 42:
             return "ضعيفة"
         else:
             return "ضعيفة جداً"
@@ -844,10 +1274,11 @@ class NotificationManager:
             coin_symbol = coin_signal.symbol
             coin_name = coin_signal.name
             
-            # التحقق من التكرار
-            notification_id = f"{coin_symbol}_{coin_signal.last_updated.timestamp()}"
-            if notification_id in self.last_notification_time:
-                return False
+            # التحقق من التكرار (30 دقيقة كحد أدنى بين الإشعارات لنفس العملة)
+            if coin_symbol in self.last_notification_time:
+                time_since_last = datetime.now() - self.last_notification_time[coin_symbol]
+                if time_since_last.total_seconds() < 1800:  # 30 دقيقة
+                    return False
             
             message = None
             notification_type = None
@@ -855,24 +1286,28 @@ class NotificationManager:
             
             # إشعارات بناء على مستوى الإشارة
             if current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
-                message = self._create_buy_message(coin_signal, "قوية")
-                notification_type = "strong_buy"
-                priority = "high"
+                if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
+                    message = self._create_buy_message(coin_signal, "قوية")
+                    notification_type = "strong_buy"
+                    priority = "high"
             
             elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
-                message = self._create_sell_message(coin_signal, "قوية")
-                notification_type = "strong_sell"
-                priority = "high"
+                if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
+                    message = self._create_sell_message(coin_signal, "قوية")
+                    notification_type = "strong_sell"
+                    priority = "high"
             
             elif current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['buy']:
                 if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['buy']:
                     message = self._create_buy_message(coin_signal, "عادية")
                     notification_type = "buy"
+                    priority = "normal"
             
             elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['sell']:
                 if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['sell']:
                     message = self._create_sell_message(coin_signal, "عادية")
                     notification_type = "sell"
+                    priority = "normal"
             
             # إشعارات التغير الكبير
             elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
@@ -889,11 +1324,13 @@ class NotificationManager:
                 message += f"⏰ {datetime.now().strftime('%H:%M')}"
                 
                 notification_type = "significant_change"
+                priority = "low"
             
             if message:
                 success = self.send_ntfy_notification(message, notification_type, priority)
                 
                 if success:
+                    notification_id = f"{coin_symbol}_{datetime.now().timestamp()}"
                     notification = Notification(
                         id=notification_id,
                         timestamp=datetime.now(),
@@ -907,7 +1344,7 @@ class NotificationManager:
                     )
                     
                     self.add_notification(notification)
-                    self.last_notification_time[notification_id] = datetime.now()
+                    self.last_notification_time[coin_symbol] = datetime.now()
                     
                     logger.info(f"تم إرسال إشعار {notification_type} لـ {coin_name}")
                     return True
@@ -924,6 +1361,7 @@ class NotificationManager:
                 f"📊 القوة: {coin_signal.total_percentage:.1f}%\n"
                 f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
                 f"📈 التغير 24h: {coin_signal.price_change_24h:+.2f}%\n"
+                f"📊 الخوف والجشع: {coin_signal.fear_greed_value}\n"
                 f"⏰ {datetime.now().strftime('%H:%M')}")
     
     def _create_sell_message(self, coin_signal: CoinSignal, strength: str) -> str:
@@ -932,6 +1370,7 @@ class NotificationManager:
                 f"📊 القوة: {coin_signal.total_percentage:.1f}%\n"
                 f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
                 f"📈 التغير 24h: {coin_signal.price_change_24h:+.2f}%\n"
+                f"📊 الخوف والجشع: {coin_signal.fear_greed_value}\n"
                 f"⏰ {datetime.now().strftime('%H:%M')}")
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
@@ -1056,7 +1495,7 @@ class SignalManager:
     def _update_fear_greed_index(self):
         """تحديث مؤشر الخوف والجشع"""
         try:
-            self.fear_greed_score, self.fear_greed_index = self.fgi_fetcher.get_index()
+            self.fear_greed_score, self.fear_greed_index, _ = self.fgi_fetcher.get_index()
             logger.info(f"مؤشر الخوف والجشع: {self.fear_greed_index} (النتيجة: {self.fear_greed_score:.2f})")
         except Exception as e:
             logger.error(f"خطأ في تحديث مؤشر الخوف والجشع: {e}")
@@ -1064,9 +1503,9 @@ class SignalManager:
     def _process_coin_signal(self, coin_config: CoinConfig) -> CoinSignal:
         """معالجة إشارة عملة واحدة"""
         try:
-            # جلب البيانات
-            df = self.data_fetcher.get_ohlcv(coin_config.symbol, timeframe='1h', limit=200)
-            if df is None or df.empty:
+            # جلب البيانات من أطر زمنية متعددة
+            df_1h = self.data_fetcher.get_ohlcv(coin_config.symbol, timeframe='1h', limit=200)
+            if df_1h is None or df_1h.empty:
                 return CoinSignal(
                     symbol=coin_config.symbol,
                     name=coin_config.name,
@@ -1086,16 +1525,20 @@ class SignalManager:
                     error_message="فشل جلب بيانات OHLCV"
                 )
             
+            # جلب بيانات متعددة الإطار الزمني
+            multiple_tf_data = self.data_fetcher.get_multiple_timeframes(coin_config.symbol)
+            
             # جلب الإحصائيات
             stats_24h = self.data_fetcher.get_24h_stats(coin_config.symbol)
             current_price = self.data_fetcher.get_current_price(coin_config.symbol)
             
-            # حساب المؤشرات
-            trend_score = self.calculator.calculate_trend_strength(df)
-            momentum_score = self.calculator.calculate_momentum(df)
-            volume_score = self.calculator.calculate_volume_analysis(df, stats_24h['change'])
-            volatility_score = self.calculator.calculate_volatility(df)
-            price_structure_score = self.calculator.calculate_price_structure(df)
+            # حساب المؤشرات المحسنة
+            trend_score = self.calculator.calculate_trend_strength(df_1h, multiple_tf_data)
+            momentum_score = self.calculator.calculate_momentum(df_1h)
+            volume_score = self.calculator.calculate_volume_analysis(df_1h, stats_24h['change'])
+            volatility_score = self.calculator.calculate_volatility(df_1h)
+            price_structure_score = self.calculator.calculate_price_structure(df_1h)
+            support_resistance_score = self.calculator.calculate_support_resistance(df_1h)
             
             # جمع المؤشرات
             indicator_scores = {
@@ -1104,7 +1547,8 @@ class SignalManager:
                 IndicatorType.VOLUME_ANALYSIS.value: volume_score,
                 IndicatorType.VOLATILITY.value: volatility_score,
                 IndicatorType.MARKET_SENTIMENT.value: self.fear_greed_score,
-                IndicatorType.PRICE_STRUCTURE.value: price_structure_score
+                IndicatorType.PRICE_STRUCTURE.value: price_structure_score,
+                IndicatorType.SUPPORT_RESISTANCE.value: support_resistance_score
             }
             
             # حساب الإشارة المرجحة
@@ -1176,8 +1620,8 @@ class SignalManager:
     
     def _cleanup_old_data(self):
         """تنظيف البيانات القديمة"""
-        # تنظيف الإشارات القديمة (أقدم من ساعتين)
-        cutoff_time = datetime.now() - timedelta(hours=2)
+        # تنظيف الإشارات القديمة (أقدم من 3 ساعات)
+        cutoff_time = datetime.now() - timedelta(hours=3)
         self.signals = {
             symbol: signal for symbol, signal in self.signals.items()
             if signal.last_updated > cutoff_time
@@ -1320,10 +1764,12 @@ class SignalManager:
             return f"قبل {delta.days} يوم"
         elif delta.seconds >= 3600:
             hours = delta.seconds // 3600
-            return f"قبل {hours} ساعة"
+            minutes = (delta.seconds % 3600) // 60
+            return f"قبل {hours} ساعة و{minutes} دقيقة"
         elif delta.seconds >= 60:
             minutes = delta.seconds // 60
-            return f"قبل {minutes} دقيقة"
+            seconds = delta.seconds % 60
+            return f"قبل {minutes} دقيقة و{seconds} ثانية"
         else:
             return f"قبل {delta.seconds} ثانية"
     
@@ -1482,7 +1928,7 @@ def health_check():
         'coins_available': len(signal_manager.signals),
         'coins_total': len(AppConfig.COINS),
         'uptime': time.time() - start_time,
-        'version': '3.0.0',
+        'version': '3.5.0',
         'fear_greed_index': signal_manager.fear_greed_index,
         'notification_count': len(signal_manager.notification_manager.notification_history)
     })
@@ -1580,12 +2026,12 @@ def background_updater():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 بدء تشغيل Crypto Signal Analyzer - الإصدار 3.0")
+    print("🚀 بدء تشغيل Crypto Signal Analyzer - الإصدار 3.5")
     print("=" * 60)
     print(f"📊 مراقبة العملات: {[coin.name for coin in AppConfig.COINS]}")
-    print(f"📈 نظام المؤشرات المتقدم مع {len(AppConfig.INDICATOR_WEIGHTS)} مؤشرات")
+    print(f"📈 نظام المؤشرات المتقدم المحسن مع {len(AppConfig.INDICATOR_WEIGHTS)} مؤشرات")
     print(f"⚡ التحديث التلقائي كل {AppConfig.UPDATE_INTERVAL//60} دقائق")
-    print(f"🔔 نظام إشعارات متقدم مع التحقق من التكرار")
+    print(f"🔔 نظام إشعارات متقدم مع تحسين الدقة")
     print(f"🔧 وضع التطوير: {os.environ.get('DEBUG', 'False')}")
     print("=" * 60)
     

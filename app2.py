@@ -1274,6 +1274,25 @@ class NotificationManager:
         
         # ✅ اختبار الاتصال عند الإنشاء
         self.test_ntfy_connection()
+        self.test_notification_system()
+
+    def test_notification_system(self):
+        """اختبار نظام الإشعارات"""
+        logger.info("🧪 Starting notification system test...")
+    
+        # اختبار 1: اتصال NTFY
+        test1 = self.test_ntfy_connection()
+    
+        # اختبار 2: إرسال رسالة اختبار بسيطة
+        test_message = "Test notification from Crypto Bot\nTime: " + datetime.now().strftime('%H:%M:%S')
+        test2 = self.send_ntfy_notification(test_message, "test", "low")
+    
+        # اختبار 3: إرسال رسالة مع إيموجيات
+        emoji_message = "🚀 Test with emojis\n📈 Chart\n💰 Money\n⏰ Time"
+        test3 = self.send_ntfy_notification(emoji_message, "test", "low")
+    
+        logger.info(f"Test Results: Connection={test1}, Simple={test2}, Emoji={test3}")
+        return all([test1, test2, test3])
     
     def test_ntfy_connection(self):  # ← هذا السطر 1278
         """اختبار اتصال NTFY عند بدء التشغيل"""
@@ -1383,21 +1402,23 @@ class NotificationManager:
                     logger.info(f"   مؤهل للإشعار: بيع ({current_percentage:.1f}%)")
         
             # إشعارات التغير الكبير
+            # إشعارات التغير الكبير
             elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
                  AppConfig.NOTIFICATION_THRESHOLDS['significant_change']:
-            
+    
                 change = current_percentage - previous_signal.total_percentage
-                direction = "صاعد" if change > 0 else "هابط"
+                direction = "UP" if change > 0 else "DOWN"  # تغيير إلى الإنجليزية
+    
                 logger.info(f"   مؤهل للإشعار: تغير كبير ({direction})")
-            
+    
                 signal_type = coin_signal.signal_type.value
-            
-                message = f"🔄 تغير كبير في {coin_name}\n"
-                message += f"من {previous_signal.total_percentage:.1f}% إلى {current_percentage:.1f}% ({direction})\n"
-                message += f"📊 الإشارة الحالية: {signal_type}\n"
-                message += f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
+    
+                message = f"🔄 BIG CHANGE: {coin_name}\n"
+                message += f"From {previous_signal.total_percentage:.1f}% to {current_percentage:.1f}% ({direction})\n"
+                message += f"📊 Current Signal: {signal_type}\n"
+                message += f"💰 Price: ${coin_signal.current_price:,.2f}\n"
                 message += f"⏰ {datetime.now().strftime('%H:%M')}"
-            
+    
                 notification_type = "significant_change"
                 priority = "low"
         
@@ -1439,10 +1460,10 @@ class NotificationManager:
             return False
     
     def _create_buy_message(self, coin_signal: CoinSignal, strength: str) -> str:
-        """إنشاء رسالة شراء مع نص مختلط آمن"""
+        """إنشاء رسالة شراء مع نص إنجليزي فقط"""
         coin_name = coin_signal.name
         symbol = coin_signal.symbol
-    
+
         # استخدام إيموجيات مع نص إنجليزي
         if strength == "قوية":
             strength_emoji = "🚀"
@@ -1450,7 +1471,7 @@ class NotificationManager:
         else:
             strength_emoji = "📈"
             strength_text = "REGULAR"
-    
+
         return (
             f"{strength_emoji} {strength_text} BUY: {coin_name} ({symbol})\n"
             f"📊 Strength: {coin_signal.total_percentage:.1f}%\n"
@@ -1461,17 +1482,17 @@ class NotificationManager:
         )
 
     def _create_sell_message(self, coin_signal: CoinSignal, strength: str) -> str:
-        """إنشاء رسالة بيع مع نص مختلط آمن"""
+        """إنشاء رسالة بيع مع نص إنجليزي فقط"""
         coin_name = coin_signal.name
         symbol = coin_signal.symbol
-    
+
         if strength == "قوية":
             strength_emoji = "⚠️"
             strength_text = "STRONG"
         else:
             strength_emoji = "📉"
             strength_text = "REGULAR"
-    
+
         return (
             f"{strength_emoji} {strength_text} SELL: {coin_name} ({symbol})\n"
             f"📊 Strength: {coin_signal.total_percentage:.1f}%\n"
@@ -1482,9 +1503,9 @@ class NotificationManager:
         )
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
-        """إرسال إشعار عبر NTFY مع معالجة الترميز"""
+        """إرسال إشعار عبر NTFY مع معالجة ترميز UTF-8 فقط"""
         try:
-            # استخدم إيموجيات فقط في Tags (لا نصوص عربية)
+            # استخدام إيموجيات فقط في Tags (لا نصوص عربية)
             tags = {
                 'strong_buy': 'heavy_plus_sign,green_circle',
                 'buy': 'chart_increasing,blue_circle',
@@ -1492,62 +1513,54 @@ class NotificationManager:
                 'sell': 'chart_decreasing,orange_circle',
                 'significant_change': 'arrows_counterclockwise,yellow_circle',
                 'heartbeat': 'heart,blue_circle',
-                'test': 'test_tube,white_circle'
+                 'test': 'test_tube,white_circle'
             }
-        
-            # استخدم عنوان إنجليزي فقط لتجنب مشاكل الترميز
+    
+            # استخدام عنوان إنجليزي فقط لتجنب مشاكل الترميز
             title_map = {
-                'strong_buy': '🚀 Strong Buy Signal',
-                'buy': '📈 Buy Signal',
-                'strong_sell': '⚠️ Strong Sell Signal',
-                'sell': '📉 Sell Signal',
-                'significant_change': '🔄 Significant Change',
-                'heartbeat': '❤️ System Heartbeat',
-                'test': '🧪 Test Notification'
+                'strong_buy': 'Strong Buy Signal',
+                'buy': 'Buy Signal',
+                'strong_sell': 'Strong Sell Signal',
+                'sell': 'Sell Signal',
+                'significant_change': 'Significant Change',
+                'heartbeat': 'System Heartbeat',
+                'test': 'Test Notification'
             }
-        
+    
             headers = {
-                "Title": title_map.get(notification_type, "📊 Crypto Signal"),
+                "Title": title_map.get(notification_type, "Crypto Signal"),
                 "Priority": priority,
                 "Tags": tags.get(notification_type, 'loudspeaker'),
-                "Content-Type": "text/plain; charset=utf-8"  # ← أضف هذا!
+                "Content-Type": "text/plain; charset=utf-8"  # ← تأكيد ترميز UTF-8
             }
-        
+    
             logger.info(f"📤 Sending {notification_type} notification")
             logger.info(f"   URL: {ExternalAPIConfig.NTFY_URL}")
-            logger.info(f"   Message length: {len(message)} chars")
-        
-            # تأكد من ترميز UTF-8
-            encoded_message = message.encode('utf-8')
-        
+            logger.debug(f"   Message preview: {message[:100]}")
+    
+            # إرسال مع ضبط ترميز UTF-8 صراحة
             response = requests.post(
                 ExternalAPIConfig.NTFY_URL,
-                data=encoded_message,
+                data=message.encode('utf-8'),
                 headers=headers,
                 timeout=15
             )
-        
+    
             logger.info(f"📥 NTFY Response: {response.status_code}")
-        
+    
             if response.status_code == 200:
                 logger.info("✅ Notification sent successfully")
                 return True
             else:
                 logger.error(f"❌ Failed to send: {response.status_code} - {response.text[:100]}")
                 return False
-            
+        
         except requests.exceptions.Timeout:
             logger.error("⏰ NTFY timeout (15 seconds)")
             return False
         except requests.exceptions.ConnectionError:
             logger.error("🔌 Connection error - check internet")
             return False
-        except UnicodeEncodeError as e:
-            logger.error(f"❌ Encoding error: {e}")
-            logger.error("Trying with ASCII fallback...")
-        
-            # محاولة ثانية بنص مبسط
-            return self._send_with_ascii_fallback(message, notification_type, priority)
         except Exception as e:
             logger.error(f"❌ Unexpected error: {e}")
             return False
@@ -1687,6 +1700,8 @@ class SignalManager:
             except Exception as e:
                 logger.error(f"خطأ في تحديث الإشارات: {e}")
                 return False
+
+
     
     def _update_fear_greed_index(self):
         """تحديث مؤشر الخوف والجشع"""

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Crypto Signal Analyzer</title>
+    <title>🚀 Crypto Signal Analyzer v2.0</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,6 +14,7 @@
             --success: #3BB273;
             --warning: #F18F01;
             --danger: #C73E1D;
+            --info: #2E86AB;
             --dark: #1A1A2E;
             --light: #F8F9FA;
             --gray: #6C757D;
@@ -113,7 +114,7 @@
         
         .cards-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
             gap: 25px;
             margin-bottom: 30px;
         }
@@ -170,6 +171,27 @@
             font-size: 0.9rem;
         }
         
+        .price-info {
+            margin-top: 5px;
+        }
+        
+        .price-change {
+            font-size: 0.85rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-right: 5px;
+        }
+        
+        .price-change.positive {
+            background: rgba(59, 178, 115, 0.1);
+            color: var(--success);
+        }
+        
+        .price-change.negative {
+            background: rgba(199, 62, 29, 0.1);
+            color: var(--danger);
+        }
+        
         .signal-badge {
             padding: 8px 15px;
             border-radius: 20px;
@@ -177,19 +199,34 @@
             font-weight: 600;
         }
         
-        .signal-buy {
-            background: rgba(59, 178, 115, 0.1);
+        .signal-strong_buy {
+            background: rgba(59, 178, 115, 0.2);
             color: var(--success);
+            border: 1px solid rgba(59, 178, 115, 0.3);
         }
         
-        .signal-sell {
-            background: rgba(199, 62, 29, 0.1);
-            color: var(--danger);
+        .signal-buy {
+            background: rgba(46, 134, 171, 0.2);
+            color: var(--primary);
+            border: 1px solid rgba(46, 134, 171, 0.3);
         }
         
         .signal-neutral {
-            background: rgba(108, 117, 125, 0.1);
+            background: rgba(108, 117, 125, 0.2);
             color: var(--gray);
+            border: 1px solid rgba(108, 117, 125, 0.3);
+        }
+        
+        .signal-sell {
+            background: rgba(241, 143, 1, 0.2);
+            color: var(--warning);
+            border: 1px solid rgba(241, 143, 1, 0.3);
+        }
+        
+        .signal-strong_sell {
+            background: rgba(199, 62, 29, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(199, 62, 29, 0.3);
         }
         
         .signal-strength {
@@ -211,15 +248,23 @@
             transition: width 1s ease;
         }
         
-        .fill-buy {
+        .fill-success {
             background: linear-gradient(90deg, var(--success), #7dd9a1);
         }
         
-        .fill-sell {
+        .fill-info {
+            background: linear-gradient(90deg, var(--primary), #5dade2);
+        }
+        
+        .fill-warning {
+            background: linear-gradient(90deg, var(--warning), #f5b041);
+        }
+        
+        .fill-danger {
             background: linear-gradient(90deg, var(--danger), #e0664d);
         }
         
-        .fill-neutral {
+        .fill-secondary {
             background: linear-gradient(90deg, var(--gray), #8a959e);
         }
         
@@ -254,6 +299,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            cursor: help;
         }
         
         .indicator-dot {
@@ -308,16 +354,33 @@
             margin-bottom: 10px;
             border-radius: 0 8px 8px 0;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 15px;
         }
         
-        .notification-item.buy {
+        .notification-item.strong_buy {
             border-left-color: var(--success);
+            background: rgba(59, 178, 115, 0.05);
+        }
+        
+        .notification-item.buy {
+            border-left-color: var(--primary);
+            background: rgba(46, 134, 171, 0.05);
+        }
+        
+        .notification-item.strong_sell {
+            border-left-color: var(--danger);
+            background: rgba(199, 62, 29, 0.05);
         }
         
         .notification-item.sell {
-            border-left-color: var(--danger);
+            border-left-color: var(--warning);
+            background: rgba(241, 143, 1, 0.05);
+        }
+        
+        .notification-item.significant_change {
+            border-left-color: var(--secondary);
+            background: rgba(162, 59, 114, 0.05);
         }
         
         .notification-time {
@@ -402,10 +465,90 @@
             font-size: 0.9rem;
         }
         
-        .buy-stat { border-top: 4px solid var(--success); }
-        .sell-stat { border-top: 4px solid var(--danger); }
+        .strong-buy-stat { border-top: 4px solid var(--success); }
+        .buy-stat { border-top: 4px solid var(--primary); }
         .neutral-stat { border-top: 4px solid var(--gray); }
-        .avg-stat { border-top: 4px solid var(--primary); }
+        .sell-stat { border-top: 4px solid var(--warning); }
+        .strong-sell-stat { border-top: 4px solid var(--danger); }
+        .avg-stat { border-top: 4px solid var(--secondary); }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--dark);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .market-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .market-info-item {
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .market-info-item h4 {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .market-info-item p {
+            color: var(--dark);
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .signal-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.85rem;
+        }
+        
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
         
         @media (max-width: 768px) {
             .header-content {
@@ -420,6 +563,12 @@
             
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .signal-legend {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
             }
         }
         
@@ -445,13 +594,13 @@
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-chart-line"></i>
-                    <h1>🚀 محلل إشارات العملات</h1>
+                    <h1>🚀 محلل إشارات العملات - الإصدار 2.0</h1>
                 </div>
                 <div class="status">
                     <i class="fas fa-sync-alt"></i>
                     <span id="last-update-text">
-                        {% if last_update %}
-                            آخر تحديث: {{ last_update.strftime('%H:%M') }}
+                        {% if stats.last_update %}
+                            {{ stats.last_update_str }}
                         {% else %}
                             جاري التحميل...
                         {% endif %}
@@ -463,27 +612,88 @@
             </div>
         </header>
         
+        <!-- Legend -->
+        <div class="signal-legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--success);"></div>
+                <span>شراء قوي (≥75%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--primary);"></div>
+                <span>شراء (60-74%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--gray);"></div>
+                <span>محايد (45-59%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--warning);"></div>
+                <span>بيع (25-44%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--danger);"></div>
+                <span>بيع قوي (≤24%)</span>
+            </div>
+        </div>
+        
         <!-- Statistics -->
         <div class="stats-grid">
-            <div class="stat-card buy-stat">
-                <i class="fas fa-arrow-up" style="color: var(--success);"></i>
-                <h3>{{ stats.buy_signals }}</h3>
-                <p>إشارات شراء</p>
+            <div class="stat-card strong-buy-stat">
+                <i class="fas fa-rocket" style="color: var(--success);"></i>
+                <h3>{{ stats.strong_buy_signals }}</h3>
+                <p>شراء قوي</p>
             </div>
-            <div class="stat-card sell-stat">
-                <i class="fas fa-arrow-down" style="color: var(--danger);"></i>
-                <h3>{{ stats.sell_signals }}</h3>
-                <p>إشارات بيع</p>
+            <div class="stat-card buy-stat">
+                <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
+                <h3>{{ stats.buy_signals }}</h3>
+                <p>شراء</p>
             </div>
             <div class="stat-card neutral-stat">
                 <i class="fas fa-minus" style="color: var(--gray);"></i>
                 <h3>{{ stats.neutral_signals }}</h3>
-                <p>إشارات محايدة</p>
+                <p>محايد</p>
+            </div>
+            <div class="stat-card sell-stat">
+                <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
+                <h3>{{ stats.sell_signals }}</h3>
+                <p>بيع</p>
+            </div>
+            <div class="stat-card strong-sell-stat">
+                <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
+                <h3>{{ stats.strong_sell_signals }}</h3>
+                <p>بيع قوي</p>
             </div>
             <div class="stat-card avg-stat">
-                <i class="fas fa-signal" style="color: var(--primary);"></i>
+                <i class="fas fa-signal" style="color: var(--secondary);"></i>
                 <h3>{{ "%.1f"|format(stats.avg_signal) }}%</h3>
                 <p>متوسط القوة</p>
+            </div>
+        </div>
+        
+        <!-- Market Info -->
+        <div class="market-info">
+            <div class="market-info-item">
+                <h4><i class="fas fa-coins"></i> إجمالي العملات</h4>
+                <p>{{ stats.total_coins }}</p>
+            </div>
+            <div class="market-info-item">
+                <h4><i class="fas fa-check-circle"></i> العملات المحدثة</h4>
+                <p>{{ stats.updated_coins }}</p>
+            </div>
+            <div class="market-info-item">
+                <h4><i class="fas fa-bell"></i> إجمالي الإشعارات</h4>
+                <p>{{ stats.total_notifications }}</p>
+            </div>
+            <div class="market-info-item">
+                <h4><i class="fas fa-brain"></i> مؤشر الخوف والجشع</h4>
+                <p>
+                    {% for coin in coins %}
+                        {% if coin.fear_greed_value %}
+                            {{ coin.fear_greed_value }}
+                            {% if loop.first %}{% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </p>
             </div>
         </div>
         
@@ -494,7 +704,11 @@
                 <span style="margin-right: 10px;">آخر تحديث للبيانات</span>
             </div>
             <div id="update-timer" style="font-weight: 600;">
-                جاري التحديث...
+                {% if stats.last_update %}
+                    التحديث التالي خلال: 5:00
+                {% else %}
+                    جاري التحديث...
+                {% endif %}
             </div>
         </div>
         
@@ -509,22 +723,35 @@
                         </div>
                         <div class="coin-name">
                             <h3>{{ coin.name }}</h3>
-                            <p>${{ coin.formatted_price }}</p>
-                            {% if coin.price_change %}
-                            <small class="{{ 'text-success' if coin.price_change > 0 else 'text-danger' }}">
-                                {{ coin.formatted_change }}
+                            <div class="price-info">
+                                <p>${{ coin.formatted_price }}</p>
+                                {% if coin.formatted_24h_change %}
+                                <span class="price-change {{ 'positive' if coin.24h_change > 0 else 'negative' }}">
+                                    <i class="fas fa-{{ 'arrow-up' if coin.24h_change > 0 else 'arrow-down' }}"></i>
+                                    {{ coin.formatted_24h_change }}
+                                </span>
+                                {% endif %}
+                                {% if coin.formatted_price_change and coin.price_change != 0 %}
+                                <small style="color: var(--gray);">
+                                    ({{ coin.formatted_price_change }})
+                                </small>
+                                {% endif %}
+                            </div>
+                            {% if coin.formatted_24h_volume and coin.formatted_24h_volume != '0' %}
+                            <small style="color: var(--gray); font-size: 0.8rem;">
+                                <i class="fas fa-chart-bar"></i> حجم 24h: {{ coin.formatted_24h_volume }}
                             </small>
                             {% endif %}
                         </div>
                     </div>
-                    <div class="signal-badge {{ 'signal-buy' if coin.signal_type == 'شراء' else 'signal-sell' if coin.signal_type == 'بيع' else 'signal-neutral' }}">
+                    <div class="signal-badge signal-{{ coin.signal_color }}">
                         {{ coin.signal_type }}
                     </div>
                 </div>
                 
                 <div class="signal-strength">
                     <div class="strength-bar">
-                        <div class="strength-fill {{ 'fill-buy' if coin.signal_type == 'شراء' else 'fill-sell' if coin.signal_type == 'بيع' else 'fill-neutral' }}" 
+                        <div class="strength-fill fill-{{ coin.signal_color }}" 
                              id="strength-{{ coin.symbol }}" 
                              style="width: {{ coin.total_percentage }}%;">
                         </div>
@@ -542,9 +769,10 @@
                     <h4 style="margin-bottom: 15px; color: var(--dark);">تفصيل المؤشرات:</h4>
                     {% for indicator in coin.indicators %}
                     <div class="indicator-item">
-                        <div class="indicator-name">
+                        <div class="tooltip indicator-name">
                             <div class="indicator-dot" style="background-color: {{ get_indicator_color(indicator.name) }};"></div>
                             <span>{{ indicator.display_name }}</span>
+                            <span class="tooltiptext">{{ indicator.description }}</span>
                         </div>
                         <div style="display: flex; align-items: center;">
                             <div class="indicator-bar">
@@ -558,8 +786,8 @@
                 
                 <div style="margin-top: 20px; font-size: 0.85rem; color: var(--gray); text-align: center;">
                     <i class="far fa-clock"></i>
-                    {% if coin.last_updated %}
-                        {{ coin.last_updated.strftime('%H:%M:%S') }}
+                    {% if coin.last_updated_str %}
+                        {{ coin.last_updated_str }}
                     {% else %}
                         غير متوفر
                     {% endif %}
@@ -573,16 +801,26 @@
             <h2 class="section-title">
                 <i class="fas fa-bell"></i> 
                 الإشعارات الأخيرة
-                {% if notification_count > 0 %}
-                <span class="notification-badge">{{ notification_count }}</span>
+                {% if stats.total_notifications > 0 %}
+                <span class="notification-badge">{{ stats.total_notifications }}</span>
                 {% endif %}
             </h2>
             <div class="notifications-list">
                 {% if notifications %}
                     {% for notification in notifications %}
-                    <div class="notification-item {{ 'buy' if notification.type == 'strong_buy' else 'sell' if notification.type == 'strong_sell' else '' }}">
+                    <div class="notification-item {{ notification.type }}">
                         <div>
-                            <i class="fas fa-bell" style="color: {{ '#3BB273' if notification.type == 'strong_buy' else '#C73E1D' if notification.type == 'strong_sell' else '#2E86AB' }};"></i>
+                            {% if notification.type == 'strong_buy' %}
+                                <i class="fas fa-rocket" style="color: var(--success);"></i>
+                            {% elif notification.type == 'buy' %}
+                                <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
+                            {% elif notification.type == 'strong_sell' %}
+                                <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
+                            {% elif notification.type == 'sell' %}
+                                <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
+                            {% else %}
+                                <i class="fas fa-exchange-alt" style="color: var(--secondary);"></i>
+                            {% endif %}
                         </div>
                         <div style="flex: 1;">
                             {{ notification.message }}
@@ -591,6 +829,7 @@
                                 {% if notification.signal_strength %}
                                 | قوة: {{ "%.1f"|format(notification.signal_strength) }}%
                                 {% endif %}
+                                | السعر: ${{ "%.2f"|format(notification.price) }}
                             </div>
                         </div>
                     </div>
@@ -614,13 +853,13 @@
         
         <!-- Footer -->
         <footer>
-            <p>🚀 Crypto Signal Analyzer | يتم التحديث تلقائياً كل 5 دقائق</p>
+            <p>🚀 Crypto Signal Analyzer v2.0 | يتم التحديث تلقائياً كل 5 دقائق</p>
             <p style="margin-top: 10px; font-size: 0.8rem;">
                 <i class="fas fa-exclamation-triangle"></i>
                 هذا التطبيق لأغراض تعليمية وتحليلية فقط وليس نصيحة استثمارية
             </p>
             <p style="margin-top: 10px; font-size: 0.8rem; color: var(--primary);">
-                <i class="fas fa-code"></i> نظام المؤشرات المدمج | Python 3.11
+                <i class="fas fa-code"></i> نظام المؤشرات المتقدم مع 6 مؤشرات رئيسية | Python 3.11
             </p>
         </footer>
     </div>
@@ -629,13 +868,23 @@
         // دالة للحصول على ألوان المؤشرات
         function getIndicatorColor(indicatorKey) {
             const colors = {
-                'fear_greed': '#2E86AB',
-                'rsi': '#A23B72',
-                'volume': '#3BB273',
-                'moving_averages': '#F18F01',
-                'price_action': '#6C757D'
+                'trend_strength': '#2E86AB',
+                'momentum': '#A23B72',
+                'volume_analysis': '#3BB273',
+                'volatility': '#F18F01',
+                'market_sentiment': '#6C757D',
+                'price_structure': '#8F2D56'
             };
             return colors[indicatorKey] || '#2E86AB';
+        }
+        
+        // دالة للحصول على لون الإشارة بناءً على النسبة
+        function getSignalColor(percentage) {
+            if (percentage >= 75) return 'success';
+            if (percentage >= 60) return 'info';
+            if (percentage >= 45) return 'secondary';
+            if (percentage >= 25) return 'warning';
+            return 'danger';
         }
         
         // تحديث يدوي
@@ -717,7 +966,7 @@
         // تحديث المؤقت
         function updateTimer() {
             const timerElement = document.getElementById('update-timer');
-            if (!timerElement) return;
+            if (!timerElement || timerElement.textContent.includes('جاري التحديث')) return;
             
             let seconds = 300; // 5 دقائق
             
@@ -748,45 +997,158 @@
             
             const canvasCtx = ctx.getContext('2d');
             
-            // بيانات تجريبية للرسم البياني
-            const labels = Array.from({length: 10}, (_, i) => `${i * 5}د`);
-            
-            const coinData = {
-                {% for coin in coins %}
-                '{{ coin.symbol }}': {
-                    name: '{{ coin.name }}',
-                    color: getIndicatorColor('{{ coin.symbol }}'),
-                    data: Array.from({length: 10}, () => Math.floor(Math.random() * 30) + 35)
-                }{% if not loop.last %},{% endif %}
-                {% endfor %}
-            };
-            
-            const datasets = [];
-            for (const [symbol, data] of Object.entries(coinData)) {
-                // تحديث آخر قيمة لتعكس القيمة الحالية
-                if (data.data.length > 0) {
-                    const coin = {{ coins|tojson }};
-                    const currentCoin = coin.find(c => c.symbol === symbol);
-                    if (currentCoin) {
-                        data.data[data.data.length - 1] = currentCoin.total_percentage;
+            // جلب البيانات التاريخية من API
+            fetch('/api/history?limit=20')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.history || data.history.length === 0) {
+                        // بيانات تجريبية إذا لم توجد بيانات تاريخية
+                        createDemoChart(canvasCtx);
+                        return;
                     }
-                }
-                
-                datasets.push({
-                    label: data.name,
-                    data: data.data,
-                    borderColor: data.color,
-                    backgroundColor: data.color + '20',
+                    
+                    // تحضير البيانات للرسم البياني
+                    const labels = data.history.map(entry => {
+                        const date = new Date(entry.timestamp);
+                        return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+                    }).reverse();
+                    
+                    const datasets = [];
+                    const colors = ['#2E86AB', '#A23B72', '#3BB273'];
+                    let colorIndex = 0;
+                    
+                    // إنشاء مجموعة بيانات لكل عملة
+                    for (const [symbol, coinData] of Object.entries(COIN_DATA || {})) {
+                        const coinName = coinData.name;
+                        const chartData = data.history.map(entry => {
+                            return entry.signals[symbol] || 50; // قيمة افتراضية إذا لم تكن موجودة
+                        }).reverse();
+                        
+                        datasets.push({
+                            label: coinName,
+                            data: chartData,
+                            borderColor: colors[colorIndex % colors.length],
+                            backgroundColor: colors[colorIndex % colors.length] + '20',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            fill: true,
+                            pointRadius: 3,
+                            pointHoverRadius: 5
+                        });
+                        
+                        colorIndex++;
+                    }
+                    
+                    // إنشاء الرسم البياني
+                    new Chart(canvasCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    rtl: true,
+                                    labels: {
+                                        padding: 20,
+                                        usePointStyle: true
+                                    }
+                                },
+                                tooltip: {
+                                    rtl: true,
+                                    mode: 'index',
+                                    intersect: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    min: 0,
+                                    max: 100,
+                                    title: {
+                                        display: true,
+                                        text: 'قوة الإشارة (%)',
+                                        font: {
+                                            size: 14
+                                        }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0,0,0,0.05)'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: 'الوقت',
+                                        font: {
+                                            size: 14
+                                        }
+                                    },
+                                    grid: {
+                                        color: 'rgba(0,0,0,0.05)'
+                                    }
+                                }
+                            },
+                            interaction: {
+                                intersect: false,
+                                mode: 'nearest'
+                            },
+                            animation: {
+                                duration: 1000
+                            }
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading chart data:', error);
+                    createDemoChart(canvasCtx);
+                });
+        }
+        
+        // إنشاء رسم بياني تجريبي
+        function createDemoChart(ctx) {
+            const labels = Array.from({length: 10}, (_, i) => `${10 - i}د`);
+            
+            const datasets = [
+                {
+                    label: 'Bitcoin',
+                    data: [55, 60, 58, 52, 48, 45, 50, 55, 60, 65],
+                    borderColor: '#2E86AB',
+                    backgroundColor: '#2E86AB20',
                     borderWidth: 2,
                     tension: 0.4,
-                    fill: true,
-                    pointRadius: 3,
-                    pointHoverRadius: 5
-                });
-            }
+                    fill: true
+                },
+                {
+                    label: 'Ethereum',
+                    data: [45, 50, 48, 42, 40, 38, 42, 45, 50, 55],
+                    borderColor: '#A23B72',
+                    backgroundColor: '#A23B7220',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'BNB',
+                    data: [60, 62, 58, 55, 52, 50, 48, 52, 55, 58],
+                    borderColor: '#3BB273',
+                    backgroundColor: '#3BB27320',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }
+            ];
             
-            // إنشاء الرسم البياني
-            new Chart(canvasCtx, {
+            new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -812,7 +1174,8 @@
                     },
                     scales: {
                         y: {
-                            beginAtZero: true,
+                            beginAtZero: false,
+                            min: 0,
                             max: 100,
                             title: {
                                 display: true,
@@ -893,6 +1256,27 @@
             });
         }
         
+        // تهيئة نصائح المؤشرات
+        function initTooltips() {
+            document.querySelectorAll('.tooltip').forEach(tooltip => {
+                tooltip.addEventListener('mouseenter', function() {
+                    const tooltipText = this.querySelector('.tooltiptext');
+                    if (tooltipText) {
+                        tooltipText.style.visibility = 'visible';
+                        tooltipText.style.opacity = '1';
+                    }
+                });
+                
+                tooltip.addEventListener('mouseleave', function() {
+                    const tooltipText = this.querySelector('.tooltiptext');
+                    if (tooltipText) {
+                        tooltipText.style.visibility = 'hidden';
+                        tooltipText.style.opacity = '0';
+                    }
+                });
+            });
+        }
+        
         // إضافة أنماط CSS للحركات
         const style = document.createElement('style');
         style.textContent = `
@@ -905,36 +1289,41 @@
                 from { top: 20px; opacity: 1; }
                 to { top: -100px; opacity: 0; }
             }
+            
+            .text-success { color: var(--success); }
+            .text-danger { color: var(--danger); }
+            .text-warning { color: var(--warning); }
+            .text-info { color: var(--primary); }
         `;
         document.head.appendChild(style);
         
         // عند تحميل الصفحة
         document.addEventListener('DOMContentLoaded', function() {
+            // تخزين بيانات العملات للاستخدام في الرسم البياني
+            window.COIN_DATA = {
+                {% for coin in coins %}
+                '{{ coin.symbol }}': {
+                    name: '{{ coin.name }}',
+                    color: getIndicatorColor('{{ coin.symbol }}'),
+                    data: []
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            };
+            
             // تهيئة المؤقت
             updateTimer();
             
             // تحريك الشرائط
-            animateStrengthBalls();
+            animateStrengthBars();
+            
+            // تهيئة نصائح المؤشرات
+            initTooltips();
             
             // تهيئة الرسم البياني بعد تحميل الصفحة
             setTimeout(initChart, 1000);
             
             // تحديث البيانات كل 30 ثانية
             setInterval(refreshData, 30000);
-            
-            // إضافة تأثيرات للمؤشرات
-            document.querySelectorAll('.indicator-dot').forEach(dot => {
-                const indicatorName = dot.nextElementSibling.textContent.trim();
-                let color = '#2E86AB';
-                
-                if (indicatorName.includes('الخوف')) color = '#2E86AB';
-                else if (indicatorName.includes('RSI')) color = '#A23B72';
-                else if (indicatorName.includes('الحجم')) color = '#3BB273';
-                else if (indicatorName.includes('المتوسطات')) color = '#F18F01';
-                else if (indicatorName.includes('حركة السعر')) color = '#6C757D';
-                
-                dot.style.backgroundColor = color;
-            });
         });
     </script>
 </body>

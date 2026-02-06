@@ -1,5 +1,5 @@
 """
-Crypto Signal Analyzer Bot - نسخة مع pandas-ta
+Crypto Signal Analyzer Bot - نسخة محدثة مع pandas-ta
 """
 
 import os
@@ -12,7 +12,6 @@ import pandas as pd
 import numpy as np
 import ccxt
 import requests
-import pandas_ta as ta  # استبدال talib بـ pandas_ta
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -38,7 +37,7 @@ INDICATOR_WEIGHTS = {
     'rsi': 0.20,
     'volume': 0.20,
     'moving_averages': 0.20,
-    'nvt': 0.20
+    'momentum': 0.20
 }
 
 # عتبات الإشعارات
@@ -109,30 +108,34 @@ class BinanceDataFetcher:
         return ticker['last'] if ticker else 0
 
 class IndicatorsCalculator:
-    """فئة لحساب المؤشرات باستخدام pandas_ta"""
+    """فئة لحساب المؤشرات"""
     
     @staticmethod
     def calculate_rsi(df, period=14):
-        """حساب مؤشر RSI باستخدام pandas_ta"""
+        """حساب مؤشر RSI"""
         try:
-            # استخدام pandas_ta لحساب RSI
-            rsi_series = ta.rsi(df['close'], length=period)
-            rsi = rsi_series.iloc[-1] if not rsi_series.empty else 50
+            # حساب RSI يدوياً
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
             
-            # تحويل RSI إلى نسبة مئوية للإشارة
-            if pd.isna(rsi):
+            rsi_value = rsi.iloc[-1] if not rsi.empty else 50
+            
+            if pd.isna(rsi_value):
                 return 50
             
-            if rsi <= 30:
+            if rsi_value <= 30:
                 return 100  # تشبع بيعي قوي
-            elif rsi >= 70:
+            elif rsi_value >= 70:
                 return 0    # تشبع شرائي قوي
             else:
                 # تحويل خطي بين 30 و 70
-                if rsi > 50:
-                    return max(0, 100 - ((rsi - 50) / 20 * 100))
+                if rsi_value > 50:
+                    return max(0, 100 - ((rsi_value - 50) / 20 * 100))
                 else:
-                    return min(100, ((50 - rsi) / 20 * 100))
+                    return min(100, ((50 - rsi_value) / 20 * 100))
         except Exception as e:
             print(f"Error calculating RSI: {e}")
             return 50
@@ -162,36 +165,35 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_moving_averages_signal(df):
-        """حساب إشارة المتوسطات المتحركة باستخدام pandas_ta"""
+        """حساب إشارة المتوسطات المتحركة"""
         try:
-            # حساب المتوسطات باستخدام pandas_ta
-            ema_20_series = ta.ema(df['close'], length=20)
-            ema_50_series = ta.ema(df['close'], length=50)
-            ema_200_series = ta.ema(df['close'], length=200)
+            # حساب المتوسطات يدوياً
+            ema_20 = df['close'].ewm(span=20, adjust=False).mean()
+            ema_50 = df['close'].ewm(span=50, adjust=False).mean()
+            ema_200 = df['close'].ewm(span=200, adjust=False).mean()
             
-            # الحصول على القيم الأخيرة
-            ema_20 = ema_20_series.iloc[-1] if not ema_20_series.empty else None
-            ema_50 = ema_50_series.iloc[-1] if not ema_50_series.empty else None
-            ema_200 = ema_200_series.iloc[-1] if not ema_200_series.empty else None
+            ema_20_value = ema_20.iloc[-1] if not ema_20.empty else None
+            ema_50_value = ema_50.iloc[-1] if not ema_50.empty else None
+            ema_200_value = ema_200.iloc[-1] if not ema_200.empty else None
             
             current_price = df['close'].iloc[-1]
             
             # تقييم الترتيب
             score = 0
             
-            if pd.notna(ema_20) and current_price > ema_20:
+            if pd.notna(ema_20_value) and current_price > ema_20_value:
                 score += 25
             
-            if pd.notna(ema_50) and current_price > ema_50:
+            if pd.notna(ema_50_value) and current_price > ema_50_value:
                 score += 25
             
-            if pd.notna(ema_200) and current_price > ema_200:
+            if pd.notna(ema_200_value) and current_price > ema_200_value:
                 score += 25
             
-            if pd.notna(ema_20) and pd.notna(ema_50) and ema_20 > ema_50:
+            if pd.notna(ema_20_value) and pd.notna(ema_50_value) and ema_20_value > ema_50_value:
                 score += 15
             
-            if pd.notna(ema_50) and pd.notna(ema_200) and ema_50 > ema_200:
+            if pd.notna(ema_50_value) and pd.notna(ema_200_value) and ema_50_value > ema_200_value:
                 score += 10
             
             return min(100, score)
@@ -226,58 +228,33 @@ class IndicatorsCalculator:
             return 50, 50
     
     @staticmethod
-    def calculate_nvt_signal(df, current_price):
-        """حساب إشارة NVT (مبسطة)"""
+    def calculate_momentum_signal(df):
+        """حساب إشارة الزخم"""
         try:
-            # متوسط الحجم اليومي (بالدولار)
-            avg_daily_volume = df['volume'].tail(24).mean() * current_price
+            # حساب الزخم البسيط
+            returns = df['close'].pct_change()
+            momentum_5 = (df['close'].iloc[-1] / df['close'].iloc[-6] - 1) * 100
+            momentum_20 = (df['close'].iloc[-1] / df['close'].iloc[-21] - 1) * 100
             
-            if avg_daily_volume == 0:
-                return 50
+            score = 50
             
-            # استخدام القيمة السوقية التقريبية (مبسطة)
-            if "BTC" in df.index.name or "BTC" in str(df.columns):
-                market_cap = current_price * 19_000_000
-            elif "ETH" in df.index.name or "ETH" in str(df.columns):
-                market_cap = current_price * 120_000_000
-            elif "BNB" in df.index.name or "BNB" in str(df.columns):
-                market_cap = current_price * 150_000_000
-            elif "SOL" in df.index.name or "SOL" in str(df.columns):
-                market_cap = current_price * 400_000_000
-            else:
-                market_cap = current_price * 1_000_000
+            if momentum_5 > 5:
+                score += 20
+            elif momentum_5 < -5:
+                score -= 20
             
-            nvt_ratio = market_cap / avg_daily_volume
+            if momentum_20 > 10:
+                score += 20
+            elif momentum_20 < -10:
+                score -= 20
             
-            if nvt_ratio < 20:
-                return 100
-            elif nvt_ratio < 40:
-                return 75
-            elif nvt_ratio < 60:
-                return 50
-            elif nvt_ratio < 80:
-                return 25
-            else:
-                return 0
+            # الزخم الإيجابي
+            if returns.tail(5).mean() > 0:
+                score += 10
+            
+            return min(100, max(0, score))
         except:
             return 50
-    
-    @staticmethod
-    def calculate_macd_signal(df):
-        """إضافة مؤشر MACD إذا لزم الأمر"""
-        try:
-            macd_series = ta.macd(df['close'], fast=12, slow=26, signal=9)
-            if macd_series is not None and 'MACD_12_26_9' in macd_series:
-                macd_line = macd_series['MACD_12_26_9'].iloc[-1] if not macd_series['MACD_12_26_9'].empty else 0
-                signal_line = macd_series['MACDs_12_26_9'].iloc[-1] if 'MACDs_12_26_9' in macd_series and not macd_series['MACDs_12_26_9'].empty else 0
-                
-                if macd_line > signal_line:
-                    return 75  # إشارة شراء
-                else:
-                    return 25  # إشارة بيع
-        except:
-            pass
-        return 50
 
 class SignalProcessor:
     """معالجة الإشارات"""
@@ -428,7 +405,7 @@ def get_indicator_display_name(indicator_key):
         'rsi': 'مؤشر RSI',
         'volume': 'الحجم التداولي',
         'moving_averages': 'المتوسطات المتحركة',
-        'nvt': 'مؤشر NVT'
+        'momentum': 'الزخم'
     }
     return names.get(indicator_key, indicator_key)
 
@@ -439,7 +416,7 @@ def get_indicator_color(indicator_key):
         'rsi': '#A23B72',
         'volume': '#3BB273',
         'moving_averages': '#F18F01',
-        'nvt': '#6C757D'
+        'momentum': '#6C757D'
     }
     return colors.get(indicator_key, '#2E86AB')
 
@@ -483,11 +460,11 @@ def update_signals():
             
             current_price = fetcher.get_current_price(symbol)
             
-            # حساب المؤشرات باستخدام pandas_ta
+            # حساب المؤشرات
             rsi_score = calculator.calculate_rsi(df)
             volume_score = calculator.calculate_volume_signal(df)
             ma_score = calculator.calculate_moving_averages_signal(df)
-            nvt_score = calculator.calculate_nvt_signal(df, current_price)
+            momentum_score = calculator.calculate_momentum_signal(df)
             
             # جمع درجات المؤشرات
             indicator_scores = {
@@ -495,7 +472,7 @@ def update_signals():
                 'rsi': rsi_score / 100,
                 'volume': volume_score / 100,
                 'moving_averages': ma_score / 100,
-                'nvt': nvt_score / 100
+                'momentum': momentum_score / 100
             }
             
             # حساب الإشارة المرجحة
@@ -672,7 +649,7 @@ if __name__ == '__main__':
     # بدء التحديث في الخلفية
     print("🚀 بدء تشغيل Crypto Signal Analyzer...")
     print(f"📊 مراقبة العملات: {[coin['name'] for coin in COINS]}")
-    print(f"📦 استخدام pandas_ta بدلاً من TA-Lib")
+    print(f"⚡ استخدام مؤشرات مدمجة بدون مكتبات خارجية معقدة")
     
     # تحديث أولي
     try:

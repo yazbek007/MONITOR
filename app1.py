@@ -1262,9 +1262,6 @@ class SignalProcessor:
         return color_map.get(signal_type, "secondary")
 
 
-class NotificationManager:
-    """إدارة الإشعارات"""
-    
     def __init__(self):
         self.notification_history: List[Notification] = []
         self.max_history = 100
@@ -1275,7 +1272,7 @@ class NotificationManager:
         # ✅ اختبار الاتصال عند الإنشاء
         self.test_ntfy_connection()
     
-   def test_ntfy_connection(self):
+    def test_ntfy_connection(self):  # ← هذا السطر 1278
         """اختبار اتصال NTFY عند بدء التشغيل"""
         try:
             # استخدام نص إنجليزي فقط للاختبار

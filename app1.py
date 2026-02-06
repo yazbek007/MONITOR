@@ -1269,6 +1269,57 @@ class NotificationManager:
         self.notification_history: List[Notification] = []
         self.max_history = 100
         self.last_notification_time = {}
+        self.last_heartbeat = None
+        self.heartbeat_interval = 7200  # 2 ساعة بالثواني (7200 ثانية)
+    
+    def check_and_send_heartbeat(self):
+        """إرسال نبضة كل ساعتين مع إحصائيات النظام"""
+        try:
+            now = datetime.now()
+            
+            # التحقق من الفاصل الزمني
+            if self.last_heartbeat and (now - self.last_heartbeat).total_seconds() < self.heartbeat_interval:
+                return False
+            
+            # جمع إحصائيات النظام
+            signal_manager = SignalManager()
+            stats = signal_manager.get_stats()
+            total_signals = len(signal_manager.signals)
+            
+            # إنشاء رسالة النبضة
+            heartbeat_message = (
+                f"❤️ نبضة نظام الإشارات\n"
+                f"⏰ الوقت: {now.strftime('%H:%M')}\n"
+                f"📊 العملات المحدثة: {stats['updated_coins']}/{stats['total_coins']}\n"
+                f"📈 متوسط الإشارة: {stats['avg_signal']:.1f}%\n"
+                f"✅ شراء قوي: {stats['strong_buy_signals']}\n"
+                f"🟢 شراء: {stats['buy_signals']}\n"
+                f"⚪ محايد: {stats['neutral_signals']}\n"
+                f"🟠 بيع: {stats['sell_signals']}\n"
+                f"🔴 بيع قوي: {stats['strong_sell_signals']}\n"
+                f"📊 مؤشر الخوف والجشع: {stats['fear_greed_index']}\n"
+                f"🔔 الإشعارات الإجمالية: {stats['total_notifications']}"
+            )
+            
+            # إرسال النبضة
+            success = self.send_ntfy_notification(
+                heartbeat_message, 
+                "heartbeat", 
+                "low"
+            )
+            
+            if success:
+                self.last_heartbeat = now
+                logger.info(f"✅ تم إرسال نبضة النظام إلى NTFY")
+                return True
+            else:
+                logger.warning(f"⚠️ فشل إرسال نبضة النظام")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال نبضة النظام: {e}")
+            return False
+    
     
     def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
         """التحقق وإرسال الإشعارات"""
@@ -2012,16 +2063,29 @@ def get_history():
     })
 
 
+
 def background_updater():
-    """تحديث البيانات في الخلفية"""
+    """تحديث البيانات في الخلفية وإرسال النبضات"""
+    notification_manager = signal_manager.notification_manager
+    
     while True:
         try:
+            # تحديث الإشارات
             signal_manager.update_all_signals()
+            
+            # التحقق من إرسال النبضات كل ساعتين
+            notification_manager.check_and_send_heartbeat()
+            
+            # الانتظار حتى التحديث التالي
             time.sleep(AppConfig.UPDATE_INTERVAL)
+            
         except Exception as e:
             logger.error(f"خطأ في التحديث التلقائي: {e}")
             time.sleep(60)  # انتظار دقيقة ثم إعادة المحاولة
 
+# ======================
+# تشغيل التطبيق
+# ======================
 
 # ======================
 # تشغيل التطبيق
@@ -2029,7 +2093,7 @@ def background_updater():
 
 if __name__ == '__main__':
     print("=" * 60)
-    print("🚀 بدء تشغيل Crypto Signal Analyzer - الإصدار 3.5")
+    print("🚀 بدء تشغيل Crypto Signal Analyzer - الإصدار 3.5.1")
     print("📊 الإطار الزمني الأساسي: 15 دقيقة (15M)")
     print("=" * 60)
     print(f"📊 مراقبة العملات: {[coin.name for coin in AppConfig.COINS]}")
@@ -2038,6 +2102,41 @@ if __name__ == '__main__':
     print(f"🔔 نظام إشعارات متقدم مع تحسين الدقة")
     print(f"🔧 وضع التطوير: {os.environ.get('DEBUG', 'False')}")
     print("=" * 60)
+    
+    # إرسال إشعار بدء التشغيل إلى NTFY
+    def send_startup_notification():
+        try:
+            startup_message = (
+                f"🚀 بدء تشغيل Crypto Signal Analyzer\n"
+                f"📊 الإصدار: 3.5.1 (15M timeframe)\n"
+                f"📈 مراقبة {len(AppConfig.COINS)} عملة\n"
+                f"⏰ وقت البدء: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"🔄 التحديث التلقائي: كل {AppConfig.UPDATE_INTERVAL//60} دقائق"
+            )
+            
+            headers = {
+                "Title": "🚀 بدء تشغيل نظام الإشارات",
+                "Priority": "low",
+                "Tags": "rocket,green_circle"
+            }
+            
+            response = requests.post(
+                ExternalAPIConfig.NTFY_URL,
+                data=startup_message.encode('utf-8'),
+                headers=headers,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                logger.info("✅ تم إرسال إشعار بدء التشغيل إلى NTFY")
+            else:
+                logger.warning(f"⚠️ فشل إرسال إشعار بدء التشغيل: {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال إشعار بدء التشغيل: {e}")
+    
+    # إرسال إشعار البدء
+    send_startup_notification()
     
     # تحديث أولي
     try:
@@ -2053,13 +2152,3 @@ if __name__ == '__main__':
     # بدء خيط التحديث التلقائي
     updater_thread = threading.Thread(target=background_updater, daemon=True)
     updater_thread.start()
-    
-    # تشغيل Flask
-    port = int(os.environ.get('PORT', 5000))
-    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
-    print(f"🌐 تشغيل الخادم على المنفذ {port}")
-    print(f"🔧 وضع التصحيح: {'مفعل' if debug_mode else 'معطل'}")
-    print("=" * 60)
-    
-    app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=False)

@@ -1,5 +1,5 @@
 """
-Crypto Signal Analyzer Bot - نسخة محدثة مع pandas-ta
+Crypto Signal Analyzer Bot - نسخة خالية من التبعيات المعقدة
 """
 
 import os
@@ -31,13 +31,13 @@ COINS = [
     {"symbol": "SOL/USDT", "name": "Solana"}
 ]
 
-# أوزان المؤشرات (20% لكل)
+# أوزان المؤشرات
 INDICATOR_WEIGHTS = {
     'fear_greed': 0.20,
     'rsi': 0.20,
     'volume': 0.20,
     'moving_averages': 0.20,
-    'momentum': 0.20
+    'price_action': 0.20
 }
 
 # عتبات الإشعارات
@@ -108,17 +108,25 @@ class BinanceDataFetcher:
         return ticker['last'] if ticker else 0
 
 class IndicatorsCalculator:
-    """فئة لحساب المؤشرات"""
+    """فئة لحساب المؤشرات باستخدام pandas/numpy فقط"""
     
     @staticmethod
     def calculate_rsi(df, period=14):
-        """حساب مؤشر RSI"""
+        """حساب مؤشر RSI يدوياً"""
         try:
-            # حساب RSI يدوياً
+            # حساب تغيرات السعر
             delta = df['close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            rs = gain / loss
+            
+            # فصل المكاسب والخسائر
+            gain = (delta.where(delta > 0, 0))
+            loss = (-delta.where(delta < 0, 0))
+            
+            # حساب متوسط المكاسب والخسائر
+            avg_gain = gain.rolling(window=period).mean()
+            avg_loss = loss.rolling(window=period).mean()
+            
+            # حساب RS وRSI
+            rs = avg_gain / avg_loss
             rsi = 100 - (100 / (1 + rs))
             
             rsi_value = rsi.iloc[-1] if not rsi.empty else 50
@@ -126,6 +134,7 @@ class IndicatorsCalculator:
             if pd.isna(rsi_value):
                 return 50
             
+            # تحويل RSI إلى درجة من 0-100
             if rsi_value <= 30:
                 return 100  # تشبع بيعي قوي
             elif rsi_value >= 70:
@@ -153,13 +162,15 @@ class IndicatorsCalculator:
             volume_ratio = current_volume / avg_volume_20
             
             if volume_ratio > 1.5:
-                return 100
+                return 100  # حجم مرتفع جداً (شراء قوي)
             elif volume_ratio > 1.0:
-                return 75
+                return 75   # حجم مرتفع
             elif volume_ratio < 0.5:
-                return 0
+                return 0    # حجم منخفض جداً (بيع قوي)
+            elif volume_ratio < 0.8:
+                return 25   # حجم منخفض
             else:
-                return 50
+                return 50   # حجم طبيعي
         except:
             return 50
     
@@ -167,33 +178,35 @@ class IndicatorsCalculator:
     def calculate_moving_averages_signal(df):
         """حساب إشارة المتوسطات المتحركة"""
         try:
-            # حساب المتوسطات يدوياً
-            ema_20 = df['close'].ewm(span=20, adjust=False).mean()
-            ema_50 = df['close'].ewm(span=50, adjust=False).mean()
-            ema_200 = df['close'].ewm(span=200, adjust=False).mean()
+            # حساب المتوسطات المتحركة
+            sma_20 = df['close'].rolling(window=20).mean()
+            sma_50 = df['close'].rolling(window=50).mean()
+            sma_200 = df['close'].rolling(window=200).mean()
             
-            ema_20_value = ema_20.iloc[-1] if not ema_20.empty else None
-            ema_50_value = ema_50.iloc[-1] if not ema_50.empty else None
-            ema_200_value = ema_200.iloc[-1] if not ema_200.empty else None
+            sma_20_value = sma_20.iloc[-1] if not sma_20.empty else None
+            sma_50_value = sma_50.iloc[-1] if not sma_50.empty else None
+            sma_200_value = sma_200.iloc[-1] if not sma_200.empty else None
             
             current_price = df['close'].iloc[-1]
             
             # تقييم الترتيب
             score = 0
             
-            if pd.notna(ema_20_value) and current_price > ema_20_value:
+            # السعر فوق المتوسطات
+            if pd.notna(sma_20_value) and current_price > sma_20_value:
                 score += 25
             
-            if pd.notna(ema_50_value) and current_price > ema_50_value:
+            if pd.notna(sma_50_value) and current_price > sma_50_value:
                 score += 25
             
-            if pd.notna(ema_200_value) and current_price > ema_200_value:
+            if pd.notna(sma_200_value) and current_price > sma_200_value:
                 score += 25
             
-            if pd.notna(ema_20_value) and pd.notna(ema_50_value) and ema_20_value > ema_50_value:
+            # الترتيب الصحيح للمتوسطات
+            if pd.notna(sma_20_value) and pd.notna(sma_50_value) and sma_20_value > sma_50_value:
                 score += 15
             
-            if pd.notna(ema_50_value) and pd.notna(ema_200_value) and ema_50_value > ema_200_value:
+            if pd.notna(sma_50_value) and pd.notna(sma_200_value) and sma_50_value > sma_200_value:
                 score += 10
             
             return min(100, score)
@@ -212,45 +225,56 @@ class IndicatorsCalculator:
             if 'data' in data and len(data['data']) > 0:
                 fgi_value = int(data['data'][0]['value'])
                 
+                # تحويل إلى درجة 0-100
                 if fgi_value <= 25:
-                    return 100, fgi_value
+                    return 100, fgi_value  # خوف شديد = إشارة شراء قوية
                 elif fgi_value <= 45:
-                    return 75, fgi_value
+                    return 75, fgi_value   # خوف
                 elif fgi_value <= 55:
-                    return 50, fgi_value
+                    return 50, fgi_value   # محايد
                 elif fgi_value <= 75:
-                    return 25, fgi_value
+                    return 25, fgi_value   # جشع
                 else:
-                    return 0, fgi_value
+                    return 0, fgi_value    # جشع شديد = إشارة بيع
             else:
                 return 50, 50
         except:
             return 50, 50
     
     @staticmethod
-    def calculate_momentum_signal(df):
-        """حساب إشارة الزخم"""
+    def calculate_price_action_signal(df):
+        """حساب إشارة حركة السعر"""
         try:
-            # حساب الزخم البسيط
-            returns = df['close'].pct_change()
-            momentum_5 = (df['close'].iloc[-1] / df['close'].iloc[-6] - 1) * 100
-            momentum_20 = (df['close'].iloc[-1] / df['close'].iloc[-21] - 1) * 100
+            current_price = df['close'].iloc[-1]
+            low_20 = df['low'].tail(20).min()
+            high_20 = df['high'].tail(20).max()
             
-            score = 50
+            # حساب موضع السعر في النطاق
+            if high_20 != low_20:
+                position = (current_price - low_20) / (high_20 - low_20) * 100
+            else:
+                position = 50
             
-            if momentum_5 > 5:
-                score += 20
-            elif momentum_5 < -5:
-                score -= 20
+            # تحليل الشموع
+            last_candle = df.iloc[-1]
+            prev_candle = df.iloc[-2]
             
-            if momentum_20 > 10:
-                score += 20
-            elif momentum_20 < -10:
-                score -= 20
+            score = position  # البدء من موضع السعر
             
-            # الزخم الإيجابي
-            if returns.tail(5).mean() > 0:
+            # شمعة صاعدة قوية
+            if last_candle['close'] > last_candle['open']:
                 score += 10
+            
+            # شمعة أكبر من سابقتها
+            body_size = abs(last_candle['close'] - last_candle['open'])
+            prev_body_size = abs(prev_candle['close'] - prev_candle['open'])
+            
+            if body_size > prev_body_size:
+                score += 5
+            
+            # إغلاق أعلى من فتح
+            if last_candle['close'] > last_candle['open'] and last_candle['close'] > prev_candle['close']:
+                score += 15
             
             return min(100, max(0, score))
         except:
@@ -405,7 +429,7 @@ def get_indicator_display_name(indicator_key):
         'rsi': 'مؤشر RSI',
         'volume': 'الحجم التداولي',
         'moving_averages': 'المتوسطات المتحركة',
-        'momentum': 'الزخم'
+        'price_action': 'حركة السعر'
     }
     return names.get(indicator_key, indicator_key)
 
@@ -416,18 +440,32 @@ def get_indicator_color(indicator_key):
         'rsi': '#A23B72',
         'volume': '#3BB273',
         'moving_averages': '#F18F01',
-        'momentum': '#6C757D'
+        'price_action': '#6C757D'
     }
     return colors.get(indicator_key, '#2E86AB')
 
 def format_number(value):
     """تنسيق الأرقام للعرض"""
-    if value >= 1000000:
-        return f"{value/1000000:.2f}M"
-    elif value >= 1000:
-        return f"{value/1000:.2f}K"
-    else:
-        return f"{value:.2f}"
+    try:
+        if value is None:
+            return "0"
+        if value >= 1000000:
+            return f"{value/1000000:.2f}M"
+        elif value >= 1000:
+            return f"{value/1000:.2f}K"
+        else:
+            return f"{value:.2f}"
+    except:
+        return "0"
+
+def format_percentage(value):
+    """تنسيق النسب المئوية"""
+    try:
+        if value is None:
+            return "0%"
+        return f"{value:.1f}%"
+    except:
+        return "0%"
 
 # ======================
 # الوظائف الرئيسية
@@ -464,7 +502,7 @@ def update_signals():
             rsi_score = calculator.calculate_rsi(df)
             volume_score = calculator.calculate_volume_signal(df)
             ma_score = calculator.calculate_moving_averages_signal(df)
-            momentum_score = calculator.calculate_momentum_signal(df)
+            price_action_score = calculator.calculate_price_action_signal(df)
             
             # جمع درجات المؤشرات
             indicator_scores = {
@@ -472,7 +510,7 @@ def update_signals():
                 'rsi': rsi_score / 100,
                 'volume': volume_score / 100,
                 'moving_averages': ma_score / 100,
-                'momentum': momentum_score / 100
+                'price_action': price_action_score / 100
             }
             
             # حساب الإشارة المرجحة
@@ -569,6 +607,7 @@ def index():
             
             coin_info['indicators'] = indicators
             coin_info['formatted_price'] = format_number(coin_info['current_price'])
+            coin_info['formatted_change'] = format_percentage(coin_info.get('price_change', 0))
             
             coins_data.append(coin_info)
         else:
@@ -584,7 +623,8 @@ def index():
                 'indicators': [],
                 'last_updated': None,
                 'fear_greed_value': 50,
-                'price_change': 0
+                'price_change': 0,
+                'formatted_change': '0%'
             })
     
     # ترتيب العملات حسب قوة الإشارة
@@ -594,12 +634,14 @@ def index():
     recent_notifications = signals_data['notifications'][-5:] if signals_data['notifications'] else []
     
     # إحصائيات
+    total_signals = [c['total_percentage'] for c in coins_data if c['total_percentage'] > 0]
     stats = {
         'total_coins': len(COINS),
         'updated_coins': len(signals_data['coins']),
-        'avg_signal': np.mean([c['total_percentage'] for c in coins_data]) if coins_data else 50,
+        'avg_signal': np.mean(total_signals) if total_signals else 50,
         'buy_signals': sum(1 for c in coins_data if c.get('signal_type') == 'شراء'),
-        'sell_signals': sum(1 for c in coins_data if c.get('signal_type') == 'بيع')
+        'sell_signals': sum(1 for c in coins_data if c.get('signal_type') == 'بيع'),
+        'neutral_signals': sum(1 for c in coins_data if c.get('signal_type') == 'محايد')
     }
     
     return render_template('index.html',
@@ -609,7 +651,8 @@ def index():
                          notification_count=len(signals_data['notifications']),
                          stats=stats,
                          get_indicator_color=get_indicator_color,
-                         format_number=format_number)
+                         format_number=format_number,
+                         format_percentage=format_percentage)
 
 @app.route('/api/signals')
 def api_signals():
@@ -637,6 +680,11 @@ def get_notifications():
     """الحصول على الإشعارات"""
     return jsonify({'notifications': signals_data['notifications'][-10:]})
 
+@app.route('/api/coins')
+def get_coins():
+    """الحصول على قائمة العملات"""
+    return jsonify({'coins': COINS})
+
 # ======================
 # تشغيل التطبيق
 # ======================
@@ -649,7 +697,8 @@ if __name__ == '__main__':
     # بدء التحديث في الخلفية
     print("🚀 بدء تشغيل Crypto Signal Analyzer...")
     print(f"📊 مراقبة العملات: {[coin['name'] for coin in COINS]}")
-    print(f"⚡ استخدام مؤشرات مدمجة بدون مكتبات خارجية معقدة")
+    print(f"⚡ نظام المؤشرات المدمج - بدون مكتبات خارجية")
+    print(f"📈 المؤشرات المستخدمة: RSI، الحجم، المتوسطات المتحركة، حركة السعر، مؤشر الخوف والجشع")
     
     # تحديث أولي
     try:
@@ -664,4 +713,5 @@ if __name__ == '__main__':
     # تشغيل Flask
     port = int(os.environ.get('PORT', 5000))
     print(f"🌐 تشغيل الخادم على المنفذ {port}")
+    print(f"⏰ التحديث التلقائي كل 5 دقائق")
     app.run(host='0.0.0.0', port=port, debug=False)

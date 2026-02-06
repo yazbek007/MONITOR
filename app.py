@@ -32,11 +32,11 @@ COINS = [
 
 # أوزان المؤشرات
 INDICATOR_WEIGHTS = {
-    'fear_greed': 0.15,
+    'fear_greed': 0.20,
     'rsi': 0.20,
-    'volume': 0.21,
-    'moving_averages': 0.22,
-    'price_action': 0.22
+    'volume': 0.20,
+    'moving_averages': 0.20,
+    'price_action': 0.20
 }
 
 # عتبات الإشعارات
@@ -150,65 +150,120 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_volume_signal(df):
-        """حساب إشارة الحجم"""
+        """حساب إشارة الحجم المعدلة"""
         try:
+            if len(df) < 20:
+                return 50
+        
             current_volume = df['volume'].iloc[-1]
             avg_volume_20 = df['volume'].tail(20).mean()
-            
-            if avg_volume_20 == 0:
+        
+            if avg_volume_20 == 0 or current_volume == 0:
                 return 50
-            
+        
             volume_ratio = current_volume / avg_volume_20
-            
-            if volume_ratio > 1.5:
-                return 100  # حجم مرتفع جداً (شراء قوي)
-            elif volume_ratio > 1.0:
-                return 75   # حجم مرتفع
-            elif volume_ratio < 0.5:
-                return 0    # حجم منخفض جداً (بيع قوي)
-            elif volume_ratio < 0.8:
+        
+            # توزيع أكثر منطقية
+            if volume_ratio > 2.0:
+                return 100  # حجم عالي جداً
+            elif volume_ratio > 1.5:
+                return 85   # حجم عالي
+            elif volume_ratio > 1.2:
+                return 70   # حجم أعلى من المتوسط
+            elif volume_ratio > 0.8:
+                return 55   # حجم طبيعي
+            elif volume_ratio > 0.5:
+                return 40   # حجم أقل من المتوسط
+            elif volume_ratio > 0.3:
                 return 25   # حجم منخفض
             else:
-                return 50   # حجم طبيعي
+                return 10   # حجم منخفض جداً
         except:
             return 50
     
     @staticmethod
     def calculate_moving_averages_signal(df):
-        """حساب إشارة المتوسطات المتحركة"""
+        """حساب إشارة المتوسطات المتحركة المعدلة"""
         try:
-            # حساب المتوسطات المتحركة
+            if len(df) < 200:
+                return 50
+        
+            # حساب المتوسطات
             sma_20 = df['close'].rolling(window=20).mean()
             sma_50 = df['close'].rolling(window=50).mean()
             sma_200 = df['close'].rolling(window=200).mean()
-            
-            sma_20_value = sma_20.iloc[-1] if not sma_20.empty else None
-            sma_50_value = sma_50.iloc[-1] if not sma_50.empty else None
-            sma_200_value = sma_200.iloc[-1] if not sma_200.empty else None
-            
+        
+            sma_20_value = sma_20.iloc[-1]
+            sma_50_value = sma_50.iloc[-1]
+            sma_200_value = sma_200.iloc[-1]
+        
             current_price = df['close'].iloc[-1]
-            
-            # تقييم الترتيب
-            score = 0
-            
-            # السعر فوق المتوسطات
-            if pd.notna(sma_20_value) and current_price > sma_20_value:
-                score += 25
-            
-            if pd.notna(sma_50_value) and current_price > sma_50_value:
-                score += 25
-            
-            if pd.notna(sma_200_value) and current_price > sma_200_value:
-                score += 25
-            
-            # الترتيب الصحيح للمتوسطات
-            if pd.notna(sma_20_value) and pd.notna(sma_50_value) and sma_20_value > sma_50_value:
-                score += 15
-            
-            if pd.notna(sma_50_value) and pd.notna(sma_200_value) and sma_50_value > sma_200_value:
-                score += 10
-            
-            return min(100, score)
+        
+            # حساب المسافات النسبية
+            score = 50  # نقطة بداية متوسطة
+        
+            # السعر مقابل المتوسطات (40 نقطة)
+            if pd.notna(sma_20_value):
+                distance_20 = ((current_price - sma_20_value) / sma_20_value) * 100
+                if distance_20 > 5:
+                    score += 15
+                elif distance_20 > 2:
+                    score += 10
+                elif distance_20 > 0:
+                    score += 5
+                elif distance_20 > -2:
+                    score -= 5
+                elif distance_20 > -5:
+                    score -= 10
+                else:
+                    score -= 15
+        
+            if pd.notna(sma_50_value):
+                distance_50 = ((current_price - sma_50_value) / sma_50_value) * 100
+                if distance_50 > 5:
+                    score += 10
+                elif distance_50 > 2:
+                    score += 7
+                elif distance_50 > 0:
+                    score += 3
+                elif distance_50 > -2:
+                    score -= 3
+                elif distance_50 > -5:
+                    score -= 7
+                else:
+                    score -= 10
+        
+            if pd.notna(sma_200_value):
+                distance_200 = ((current_price - sma_200_value) / sma_200_value) * 100
+                if distance_200 > 5:
+                    score += 15
+                elif distance_200 > 2:
+                    score += 10
+                elif distance_200 > 0:
+                    score += 5
+                elif distance_200 > -2:
+                    score -= 5
+                elif distance_200 > -5:
+                    score -= 10
+                else:
+                    score -= 15
+        
+            # الترتيب (20 نقطة)
+            if pd.notna(sma_20_value) and pd.notna(sma_50_value):
+                if sma_20_value > sma_50_value:
+                    score += 10
+                else:
+                    score -= 5
+        
+            if pd.notna(sma_50_value) and pd.notna(sma_200_value):
+                if sma_50_value > sma_200_value:
+                    score += 10
+                else:
+                    score -= 5
+        
+            # التأكد من النتيجة بين 0-100
+            return max(0, min(100, score))
+        
         except Exception as e:
             print(f"Error in MA calculation: {e}")
             return 50

@@ -5,7 +5,7 @@ numpy>=1.26.0,<2
 ccxt==4.2.58
 ta-lib==0.4.28  # بدلاً من ta
 requests==2.32.3
-python-dotenv==1.0.20
+python-dotenv==1.2.1
 gunicorn==21.2.0
 setuptools==69.0.3
 wheel==0.42.0

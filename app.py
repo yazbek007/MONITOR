@@ -27,17 +27,16 @@ app.secret_key = os.environ.get('SECRET_KEY', 'crypto-signal-secret-2024')
 COINS = [
     {"symbol": "BTC/USDT", "name": "Bitcoin"},
     {"symbol": "ETH/USDT", "name": "Ethereum"},
-    {"symbol": "BNB/USDT", "name": "Binance Coin"},
-    {"symbol": "SOL/USDT", "name": "Solana"}
+    {"symbol": "BNB/USDT", "name": "Binance Coin"}
 ]
 
 # أوزان المؤشرات
 INDICATOR_WEIGHTS = {
-    'fear_greed': 0.20,
+    'fear_greed': 0.15,
     'rsi': 0.20,
-    'volume': 0.20,
-    'moving_averages': 0.20,
-    'price_action': 0.20
+    'volume': 0.21,
+    'moving_averages': 0.22,
+    'price_action': 0.22
 }
 
 # عتبات الإشعارات

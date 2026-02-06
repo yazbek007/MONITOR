@@ -1,0 +1,8 @@
+Flask==2.3.3
+pandas==2.0.3
+numpy==1.24.3
+ccxt==4.1.7
+ta==0.10.2
+requests==2.31.0
+python-dotenv==1.0.0
+gunicorn==21.2.0

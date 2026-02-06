@@ -262,6 +262,11 @@
             gap: 10px;
             flex-wrap: wrap;
         }
+
+        .price-change.neutral {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--gray);
+        }
         
         .price-change {
             font-size: 0.85rem;
@@ -1096,18 +1101,19 @@
                                     <div class="price-info">
                                         <div class="current-price">${{ coin.formatted_price }}</div>
                                         <div class="price-changes">
-                                            {% if coin.formatted_24h_change %}
-                                            <span class="price-change {{ 'positive' if coin.price_change_24h > 0 else 'negative' }}">
-                                                <i class="fas fa-{{ 'arrow-up' if coin.price_change_24h > 0 else 'arrow-down' }}"></i>
-                                                {{ coin.formatted_24h_change }} (24h)
-                                            </span>
-                                            {% endif %}
-                                            {% if coin.formatted_price_change and coin.price_change_since_last != 0 %}
-                                            <span class="price-change {{ 'positive' if coin.price_change_since_last > 0 else 'negative' }}">
-                                                <i class="fas fa-{{ 'arrow-up' if coin.price_change_since_last > 0 else 'arrow-down' }}"></i>
-                                                {{ coin.formatted_price_change }} (آخر تحديث)
-                                            </span>
-                                            {% endif %}
+                                           {% if coin.formatted_24h_change %}
+                                           <span class="price-change {{ 'positive' if coin.price_change_24h > 0 else 'negative' }}">
+                                               <i class="fas fa-{{ 'arrow-up' if coin.price_change_24h > 0 else 'arrow-down' }}"></i>
+                                               {{ coin.formatted_24h_change }} (24h)
+                                           </span>
+                                           {% endif %}
+    
+                                           {% if coin.price_change_since_last is not none and coin.formatted_price_change != '0.00%' %}
+                                           <span class="price-change {{ 'positive' if coin.price_change_since_last > 0 else 'negative' if coin.price_change_since_last < 0 else 'neutral' }}">
+                                               <i class="fas fa-{{ 'arrow-up' if coin.price_change_since_last > 0 else 'arrow-down' if coin.price_change_since_last < 0 else 'minus' }}"></i>
+                                               {{ coin.formatted_price_change }} (آخر تحديث)
+                                           </span>
+                                           {% endif %}
                                         </div>
                                         {% if coin.formatted_volume_24h and coin.formatted_volume_24h != '0' %}
                                         <div class="volume-info">

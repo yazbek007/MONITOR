@@ -1270,54 +1270,147 @@ class NotificationManager:
         self.max_history = 100
         self.last_notification_time = {}
         self.last_heartbeat = None
-        self.heartbeat_interval = 7200  # 2 ساعة بالثواني (7200 ثانية)
+        self.heartbeat_interval = 7200
+        
+        # ✅ اختبار الاتصال عند الإنشاء
+        self.test_ntfy_connection()
     
-    def check_and_send_heartbeat(self):
-        """إرسال نبضة كل ساعتين مع إحصائيات النظام"""
+    def test_ntfy_connection(self):
+        """اختبار اتصال NTFY عند بدء التشغيل"""
         try:
-            now = datetime.now()
+            test_message = "🔔 اختبار اتصال NTFY من Crypto Bot"
+            headers = {
+                "Title": "اختبار الاتصال",
+                "Priority": "low",
+                "Tags": "green_circle"
+            }
             
-            # التحقق من الفاصل الزمني
-            if self.last_heartbeat and (now - self.last_heartbeat).total_seconds() < self.heartbeat_interval:
-                return False
+            logger.info(f"🔍 اختبار اتصال NTFY إلى: {ExternalAPIConfig.NTFY_URL}")
             
-            # جمع إحصائيات النظام
-            signal_manager = SignalManager()
-            stats = signal_manager.get_stats()
-            total_signals = len(signal_manager.signals)
-            
-            # إنشاء رسالة النبضة
-            heartbeat_message = (
-                f"❤️ نبضة نظام الإشارات\n"
-                f"⏰ الوقت: {now.strftime('%H:%M')}\n"
-                f"📊 العملات المحدثة: {stats['updated_coins']}/{stats['total_coins']}\n"
-                f"📈 متوسط الإشارة: {stats['avg_signal']:.1f}%\n"
-                f"✅ شراء قوي: {stats['strong_buy_signals']}\n"
-                f"🟢 شراء: {stats['buy_signals']}\n"
-                f"⚪ محايد: {stats['neutral_signals']}\n"
-                f"🟠 بيع: {stats['sell_signals']}\n"
-                f"🔴 بيع قوي: {stats['strong_sell_signals']}\n"
-                f"📊 مؤشر الخوف والجشع: {stats['fear_greed_index']}\n"
-                f"🔔 الإشعارات الإجمالية: {stats['total_notifications']}"
+            response = requests.post(
+                ExternalAPIConfig.NTFY_URL,
+                data=test_message.encode('utf-8'),
+                headers=headers,
+                timeout=10
             )
             
-            # إرسال النبضة
-            success = self.send_ntfy_notification(
-                heartbeat_message, 
-                "heartbeat", 
-                "low"
-            )
-            
-            if success:
-                self.last_heartbeat = now
-                logger.info(f"✅ تم إرسال نبضة النظام إلى NTFY")
+            if response.status_code == 200:
+                logger.info("✅ اتصال NTFY يعمل بنجاح!")
                 return True
             else:
-                logger.warning(f"⚠️ فشل إرسال نبضة النظام")
+                logger.warning(f"⚠️ استجابة NTFY غير متوقعة: {response.status_code}")
+                logger.warning(f"⚠️ نص الاستجابة: {response.text[:100]}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ خطأ في إرسال نبضة النظام: {e}")
+            logger.error(f"❌ فشل اتصال NTFY: {e}")
+            return False
+        
+    def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
+        """التحقق وإرسال الإشعارات مع تسجيل الأسباب"""
+        try:
+            current_percentage = coin_signal.total_percentage
+            coin_symbol = coin_signal.symbol
+            coin_name = coin_signal.name
+        
+            # ✅ تسجيل بدء التحقق
+            logger.debug(f"🔍 التحقق من إشعارات {coin_name} ({current_percentage:.1f}%)")
+        
+            # التحقق من التكرار (30 دقيقة كحد أدنى بين الإشعارات لنفس العملة)
+            if coin_symbol in self.last_notification_time:
+                time_since_last = datetime.now() - self.last_notification_time[coin_symbol]
+                if time_since_last.total_seconds() < 1800:  # 30 دقيقة
+                    logger.debug(f"   ⏰ آخر إشعار كان قبل {int(time_since_last.total_seconds()/60)} دقيقة")
+                    return False
+        
+            message = None
+            notification_type = None
+            priority = "default"
+        
+            # ✅ تسجيل العتبات
+            logger.debug(f"   📊 العتبات: شراء قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']}) | شراء({AppConfig.NOTIFICATION_THRESHOLDS['buy']})")
+            logger.debug(f"   📊 العتبات: بيع({AppConfig.NOTIFICATION_THRESHOLDS['sell']}) | بيع قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']})")
+         
+            # إشعارات بناء على مستوى الإشارة
+            if current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
+                if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
+                    message = self._create_buy_message(coin_signal, "قوية")
+                    notification_type = "strong_buy"
+                    priority = "high"
+                    logger.info(f"   🚀 مؤهل للإشعار: شراء قوي")
+        
+            elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
+                if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
+                    message = self._create_sell_message(coin_signal, "قوية")
+                    notification_type = "strong_sell"
+                    priority = "high"
+                    logger.info(f"   ⚠️ مؤهل للإشعار: بيع قوي")
+        
+            elif current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['buy']:
+                if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['buy']:
+                    message = self._create_buy_message(coin_signal, "عادية")
+                    notification_type = "buy"
+                    priority = "normal"
+                    logger.info(f"   📈 مؤهل للإشعار: شراء")
+        
+            elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['sell']:
+                if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['sell']:
+                    message = self._create_sell_message(coin_signal, "عادية")
+                    notification_type = "sell"
+                    priority = "normal"
+                    logger.info(f"   📉 مؤهل للإشعار: بيع")
+        
+            # إشعارات التغير الكبير
+            elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
+                 AppConfig.NOTIFICATION_THRESHOLDS['significant_change']:
+            
+                change = current_percentage - previous_signal.total_percentage
+                direction = "صاعد" if change > 0 else "هابط"
+                logger.info(f"   🔄 مؤهل للإشعار: تغير كبير ({direction})")
+            
+                signal_type = coin_signal.signal_type.value
+            
+                message = f"🔄 تغير كبير في {coin_name}\n"
+                message += f"من {previous_signal.total_percentage:.1f}% إلى {current_percentage:.1f}% ({direction})\n"
+                message += f"📊 الإشارة الحالية: {signal_type}\n"
+                message += f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
+                message += f"⏰ {datetime.now().strftime('%H:%M')}"
+            
+                notification_type = "significant_change"
+                priority = "low"
+        
+            else:
+                logger.debug(f"   ❌ غير مؤهل لأي إشعار (لا يفي بالشروط)")
+        
+            if message:
+                success = self.send_ntfy_notification(message, notification_type, priority)
+            
+                if success:
+                    notification_id = f"{coin_symbol}_{datetime.now().timestamp()}"
+                    notification = Notification(
+                        id=notification_id,
+                        timestamp=datetime.now(),
+                        coin_symbol=coin_symbol,
+                        coin_name=coin_name,
+                        message=message,
+                        notification_type=notification_type,
+                        signal_strength=current_percentage,
+                        price=coin_signal.current_price,
+                        priority=priority
+                    )
+                
+                    self.add_notification(notification)
+                    self.last_notification_time[coin_symbol] = datetime.now()
+                
+                    logger.info(f"✅ تم إرسال إشعار {notification_type} لـ {coin_name}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ فشل إرسال إشعار {notification_type} لـ {coin_name}")
+        
+            return False
+        
+        except Exception as e:
+            logger.error(f"❌ خطأ في التحقق من الإشعارات: {e}", exc_info=True)
             return False
     
     
@@ -1428,33 +1521,58 @@ class NotificationManager:
                 f"⏰ {datetime.now().strftime('%H:%M')}")
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
-        """إرسال إشعار عبر NTFY"""
+        """إرسال إشعار عبر NTFY مع تسجيل مفصل"""
         try:
             tags = {
                 'strong_buy': 'heavy_plus_sign,green_circle',
                 'buy': 'chart_increasing,blue_circle',
                 'strong_sell': 'heavy_minus_sign,red_circle',
                 'sell': 'chart_decreasing,orange_circle',
-                'significant_change': 'arrows_counterclockwise,yellow_circle'
+                'significant_change': 'arrows_counterclockwise,yellow_circle',
+                'heartbeat': 'heart,blue_circle',
+                'test': 'test_tube,white_circle'
             }
-            
+        
             headers = {
                 "Title": "📊 إشعار إشارة التشفير",
                 "Priority": priority,
                 "Tags": tags.get(notification_type, 'loudspeaker')
             }
-            
+        
+            # ✅ تسجيل التفاصيل قبل الإرسال
+            logger.info("=" * 50)
+            logger.info(f"📤 محاولة إرسال إشعار:")
+            logger.info(f"   النوع: {notification_type}")
+            logger.info(f"   الأولوية: {priority}")
+            logger.info(f"   الرابط: {ExternalAPIConfig.NTFY_URL}")
+            logger.info(f"   الرسالة: {message[:100]}...")
+            logger.info("=" * 50)
+        
             response = requests.post(
                 ExternalAPIConfig.NTFY_URL,
                 data=message.encode('utf-8'),
                 headers=headers,
                 timeout=10
             )
-            
+        
+            # ✅ تسجيل النتيجة
+            logger.info(f"📥 استجابة NTFY:")
+            logger.info(f"   الحالة: {response.status_code}")
+            if response.status_code != 200:
+                logger.error(f"   ❌ خطأ: {response.text[:200]}")
+            else:
+                logger.info("   ✅ تم الإرسال بنجاح")
+        
             return response.status_code == 200
-            
+        
+        except requests.exceptions.Timeout:
+            logger.error("⏰ تجاوز وقت انتظار NTFY (10 ثواني)")
+            return False
+        except requests.exceptions.ConnectionError:
+            logger.error("🔌 خطأ اتصال بـ NTFY - تحقق من الإنترنت")
+            return False
         except Exception as e:
-            logger.error(f"خطأ في إرسال إشعار NTFY: {e}")
+            logger.error(f"❌ خطأ غير متوقع في إرسال NTFY: {e}", exc_info=True)
             return False
     
     def add_notification(self, notification: Notification):
@@ -2095,6 +2213,11 @@ if __name__ == '__main__':
     print("=" * 60)
     print("🚀 بدء تشغيل Crypto Signal Analyzer - الإصدار 3.5.1")
     print("📊 الإطار الزمني الأساسي: 15 دقيقة (15M)")
+    print("=" * 60)
+    print(f"📢 إعدادات الإشعارات:")
+    print(f"   Topic: {ExternalAPIConfig.NTFY_TOPIC}")
+    print(f"   URL: {ExternalAPIConfig.NTFY_URL}")
+    print(f"   رابط الاشتراك: https://ntfy.sh/{ExternalAPIConfig.NTFY_TOPIC}")
     print("=" * 60)
     print(f"📊 مراقبة العملات: {[coin.name for coin in AppConfig.COINS]}")
     print(f"📈 نظام المؤشرات المتقدم المحسن مع {len(AppConfig.INDICATOR_WEIGHTS)} مؤشرات")

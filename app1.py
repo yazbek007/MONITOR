@@ -1562,7 +1562,7 @@ class SignalProcessor:
             f"📈 24h Change: {coin_signal.price_change_24h:+.2f}%\n"
             f"📊 Fear/Greed: {coin_signal.fear_greed_value}\n"
             f"⏰ {datetime.now().strftime('%H:%M')}"
-        )strftime('%H:%M')}")
+        )
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
         """إرسال إشعار عبر NTFY مع معالجة الترميز"""

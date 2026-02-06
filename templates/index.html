@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Crypto Signal Analyzer v2.0</title>
+    <title>🚀 Crypto Signal Analyzer v3.0</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js"></script>
     <style>
         :root {
             --primary: #2E86AB;
@@ -20,6 +21,10 @@
             --gray: #6C757D;
             --card-bg: #ffffff;
             --body-bg: #f5f7fb;
+            --border-radius: 12px;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            --shadow-hover: 0 15px 30px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
         }
         
         * {
@@ -34,6 +39,7 @@
             color: #333;
             line-height: 1.6;
             padding-bottom: 20px;
+            min-height: 100vh;
         }
         
         .container {
@@ -42,13 +48,28 @@
             padding: 0 20px;
         }
         
+        /* Header */
         header {
             background: linear-gradient(135deg, var(--primary), var(--secondary));
             color: white;
             padding: 25px 0;
-            border-radius: 15px;
+            border-radius: var(--border-radius);
             margin: 20px 0 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.1;
         }
         
         .header-content {
@@ -56,6 +77,8 @@
             justify-content: space-between;
             align-items: center;
             padding: 0 30px;
+            position: relative;
+            z-index: 1;
         }
         
         .logo {
@@ -78,6 +101,15 @@
         .logo h1 {
             font-size: 1.8rem;
             font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .logo .version {
+            font-size: 0.8rem;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-right: 10px;
         }
         
         .status {
@@ -85,7 +117,12 @@
             padding: 10px 20px;
             border-radius: 50px;
             font-size: 0.9rem;
+            backdrop-filter: blur(10px);
         }
+        
+        .status.healthy { color: var(--success); }
+        .status.warning { color: var(--warning); }
+        .status.unhealthy { color: var(--danger); }
         
         .update-btn {
             background: white;
@@ -95,15 +132,16 @@
             border-radius: 50px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition);
             display: flex;
             align-items: center;
             gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
         
-        .update-btn:hover {
+        .update-btn:hover:not(:disabled) {
             transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-hover);
         }
         
         .update-btn:disabled {
@@ -112,40 +150,70 @@
             transform: none;
         }
         
-        .cards-grid {
+        /* Main Content */
+        .main-content {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            grid-template-columns: 1fr 350px;
             gap: 25px;
             margin-bottom: 30px;
         }
         
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Left Column */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        /* Right Column */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        /* Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        
         .card {
             background: var(--card-bg);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
             border: 1px solid rgba(0, 0, 0, 0.05);
+            height: 100%;
         }
         
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-hover);
         }
         
         .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
+            align-items: flex-start;
+            margin-bottom: 15px;
             padding-bottom: 15px;
             border-bottom: 2px solid #f0f0f0;
         }
         
         .coin-info {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 15px;
+            flex: 1;
         }
         
         .coin-icon {
@@ -159,6 +227,18 @@
             color: white;
             font-size: 1.2rem;
             font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .coin-details {
+            flex: 1;
+        }
+        
+        .coin-name {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
         }
         
         .coin-name h3 {
@@ -166,20 +246,30 @@
             color: var(--dark);
         }
         
-        .coin-name p {
-            color: var(--gray);
-            font-size: 0.9rem;
-        }
-        
         .price-info {
             margin-top: 5px;
         }
         
+        .current-price {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 5px;
+        }
+        
+        .price-changes {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
         .price-change {
             font-size: 0.85rem;
-            padding: 2px 8px;
+            padding: 4px 10px;
             border-radius: 10px;
-            margin-right: 5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
         
         .price-change.positive {
@@ -192,43 +282,51 @@
             color: var(--danger);
         }
         
+        .volume-info {
+            font-size: 0.8rem;
+            color: var(--gray);
+            margin-top: 5px;
+        }
+        
         .signal-badge {
             padding: 8px 15px;
             border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 600;
+            white-space: nowrap;
         }
         
-        .signal-strong_buy {
+        .signal-success {
             background: rgba(59, 178, 115, 0.2);
             color: var(--success);
             border: 1px solid rgba(59, 178, 115, 0.3);
         }
         
-        .signal-buy {
+        .signal-info {
             background: rgba(46, 134, 171, 0.2);
             color: var(--primary);
             border: 1px solid rgba(46, 134, 171, 0.3);
         }
         
-        .signal-neutral {
+        .signal-secondary {
             background: rgba(108, 117, 125, 0.2);
             color: var(--gray);
             border: 1px solid rgba(108, 117, 125, 0.3);
         }
         
-        .signal-sell {
+        .signal-warning {
             background: rgba(241, 143, 1, 0.2);
             color: var(--warning);
             border: 1px solid rgba(241, 143, 1, 0.3);
         }
         
-        .signal-strong_sell {
+        .signal-danger {
             background: rgba(199, 62, 29, 0.2);
             color: var(--danger);
             border: 1px solid rgba(199, 62, 29, 0.3);
         }
         
+        /* Signal Strength */
         .signal-strength {
             margin: 20px 0;
         }
@@ -246,105 +344,299 @@
             height: 100%;
             border-radius: 12px;
             transition: width 1s ease;
+            position: relative;
+            overflow: hidden;
         }
         
-        .fill-success {
-            background: linear-gradient(90deg, var(--success), #7dd9a1);
+        .strength-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, 
+                rgba(255,255,255,0) 0%, 
+                rgba(255,255,255,0.3) 50%, 
+                rgba(255,255,255,0) 100%);
+            animation: shimmer 2s infinite;
         }
         
-        .fill-info {
-            background: linear-gradient(90deg, var(--primary), #5dade2);
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
         
-        .fill-warning {
-            background: linear-gradient(90deg, var(--warning), #f5b041);
-        }
-        
-        .fill-danger {
-            background: linear-gradient(90deg, var(--danger), #e0664d);
-        }
-        
-        .fill-secondary {
-            background: linear-gradient(90deg, var(--gray), #8a959e);
-        }
+        .fill-success { background: linear-gradient(90deg, var(--success), #7dd9a1); }
+        .fill-info { background: linear-gradient(90deg, var(--primary), #5dade2); }
+        .fill-secondary { background: linear-gradient(90deg, var(--gray), #8a959e); }
+        .fill-warning { background: linear-gradient(90deg, var(--warning), #f5b041); }
+        .fill-danger { background: linear-gradient(90deg, var(--danger), #e0664d); }
         
         .strength-text {
             display: flex;
             justify-content: space-between;
-            font-weight: 600;
+            align-items: center;
         }
         
         .strength-value {
             font-size: 1.8rem;
+            font-weight: 700;
             color: var(--dark);
         }
         
+        .strength-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        /* Indicators */
+        .indicators-section {
+            margin-top: 20px;
+        }
+        
+        .indicators-title {
+            font-size: 1rem;
+            color: var(--dark);
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
         .indicators-list {
-            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
         
         .indicator-item {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: var(--transition);
         }
         
-        .indicator-item:last-child {
-            border-bottom: none;
+        .indicator-item:hover {
+            background: #e9ecef;
+            transform: translateX(-5px);
+        }
+        
+        .indicator-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
         
         .indicator-name {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            flex: 1;
+            font-size: 0.9rem;
+            color: var(--dark);
             cursor: help;
-        }
-        
-        .indicator-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
+            position: relative;
         }
         
         .indicator-value {
             font-weight: 600;
             color: var(--dark);
+            font-size: 0.9rem;
+            min-width: 50px;
+            text-align: left;
         }
         
         .indicator-bar {
-            width: 100px;
+            width: 80px;
             height: 8px;
-            background: #f0f0f0;
+            background: #e9ecef;
             border-radius: 4px;
             overflow: hidden;
-            margin: 0 10px;
         }
         
         .indicator-fill {
             height: 100%;
             border-radius: 4px;
+            transition: width 1s ease;
         }
         
-        .dashboard-section {
-            margin-bottom: 40px;
+        /* Tooltip */
+        .tooltip-content {
+            visibility: hidden;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--dark);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            width: 200px;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
         }
         
-        .section-title {
-            font-size: 1.4rem;
-            color: var(--dark);
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--dark);
+        }
+        
+        .indicator-name:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--primary);
-            display: inline-block;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            border-top: 4px solid var(--gray);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .stat-card.strong-buy { border-top-color: var(--success); }
+        .stat-card.buy { border-top-color: var(--primary); }
+        .stat-card.neutral { border-top-color: var(--gray); }
+        .stat-card.sell { border-top-color: var(--warning); }
+        .stat-card.strong-sell { border-top-color: var(--danger); }
+        .stat-card.avg { border-top-color: var(--secondary); }
+        
+        .stat-card i {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card h3 {
+            font-size: 1.8rem;
+            color: var(--dark);
+            margin: 10px 0;
+            font-weight: 700;
+        }
+        
+        .stat-card p {
+            color: var(--gray);
+            font-size: 0.85rem;
+        }
+        
+        /* Market Info */
+        .market-info {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .market-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .market-info-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .market-info-item h4 {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .market-info-item p {
+            color: var(--dark);
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+        
+        /* Notifications */
+        .notifications-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            height: 100%;
+        }
+        
+        .notifications-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .notifications-title {
+            font-size: 1.2rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .notification-badge {
+            background: var(--danger);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
         }
         
         .notifications-list {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .notifications-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .notifications-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .notifications-list::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
         }
         
         .notification-item {
@@ -353,47 +645,73 @@
             background: #f8f9fa;
             margin-bottom: 10px;
             border-radius: 0 8px 8px 0;
+            transition: var(--transition);
+        }
+        
+        .notification-item:hover {
+            background: #e9ecef;
+            transform: translateX(-5px);
+        }
+        
+        .notification-item.strong_buy { border-left-color: var(--success); }
+        .notification-item.buy { border-left-color: var(--primary); }
+        .notification-item.strong_sell { border-left-color: var(--danger); }
+        .notification-item.sell { border-left-color: var(--warning); }
+        .notification-item.significant_change { border-left-color: var(--secondary); }
+        
+        .notification-content {
             display: flex;
             align-items: flex-start;
-            gap: 15px;
+            gap: 10px;
         }
         
-        .notification-item.strong_buy {
-            border-left-color: var(--success);
-            background: rgba(59, 178, 115, 0.05);
+        .notification-icon {
+            font-size: 1.2rem;
+            margin-top: 2px;
         }
         
-        .notification-item.buy {
-            border-left-color: var(--primary);
-            background: rgba(46, 134, 171, 0.05);
+        .notification-text {
+            flex: 1;
         }
         
-        .notification-item.strong_sell {
-            border-left-color: var(--danger);
-            background: rgba(199, 62, 29, 0.05);
-        }
-        
-        .notification-item.sell {
-            border-left-color: var(--warning);
-            background: rgba(241, 143, 1, 0.05);
-        }
-        
-        .notification-item.significant_change {
-            border-left-color: var(--secondary);
-            background: rgba(162, 59, 114, 0.05);
+        .notification-message {
+            margin-bottom: 5px;
+            line-height: 1.4;
+            white-space: pre-line;
         }
         
         .notification-time {
             font-size: 0.8rem;
             color: var(--gray);
-            margin-top: 5px;
+        }
+        
+        .empty-notifications {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray);
+        }
+        
+        .empty-notifications i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        /* Chart */
+        .chart-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
         }
         
         .chart-container {
             height: 300px;
-            margin-top: 20px;
+            margin-top: 15px;
+            position: relative;
         }
         
+        /* Footer */
         footer {
             text-align: center;
             padding: 20px;
@@ -403,132 +721,59 @@
             border-top: 1px solid #eaeaea;
         }
         
-        .last-update {
+        footer p {
+            margin-bottom: 10px;
+        }
+        
+        .disclaimer {
+            background: rgba(241, 143, 1, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid var(--warning);
+        }
+        
+        /* Update Timer */
+        .update-timer {
             background: white;
             padding: 15px;
-            border-radius: 10px;
+            border-radius: var(--border-radius);
             margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+            box-shadow: var(--shadow);
         }
         
-        .notification-badge {
-            background: var(--danger);
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            margin-right: 5px;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: var(--gray);
-            font-size: 1.2rem;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        .stat-card i {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-        
-        .stat-card h3 {
-            font-size: 2rem;
-            color: var(--dark);
-            margin: 10px 0;
-        }
-        
-        .stat-card p {
-            color: var(--gray);
-            font-size: 0.9rem;
-        }
-        
-        .strong-buy-stat { border-top: 4px solid var(--success); }
-        .buy-stat { border-top: 4px solid var(--primary); }
-        .neutral-stat { border-top: 4px solid var(--gray); }
-        .sell-stat { border-top: 4px solid var(--warning); }
-        .strong-sell-stat { border-top: 4px solid var(--danger); }
-        .avg-stat { border-top: 4px solid var(--secondary); }
-        
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-        
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: 200px;
-            background-color: var(--dark);
-            color: white;
-            text-align: center;
-            border-radius: 6px;
-            padding: 10px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -100px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.8rem;
-            line-height: 1.4;
-        }
-        
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-        
-        .market-info {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        .market-info-item {
-            text-align: center;
-            padding: 10px;
-        }
-        
-        .market-info-item h4 {
-            color: var(--gray);
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-        
-        .market-info-item p {
-            color: var(--dark);
+        .timer-display {
             font-weight: 600;
             font-size: 1.1rem;
+            color: var(--primary);
         }
         
+        /* System Status */
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.healthy { background: var(--success); }
+        .status-dot.warning { background: var(--warning); }
+        .status-dot.unhealthy { background: var(--danger); }
+        .status-dot.unknown { background: var(--gray); }
+        
+        /* Legend */
         .signal-legend {
             display: flex;
             justify-content: center;
@@ -540,16 +785,46 @@
         .legend-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
             font-size: 0.85rem;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         
         .legend-color {
-            width: 15px;
-            height: 15px;
-            border-radius: 3px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
         }
         
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
         @media (max-width: 768px) {
             .header-content {
                 flex-direction: column;
@@ -565,9 +840,19 @@
                 grid-template-columns: repeat(2, 1fr);
             }
             
+            .market-info-grid {
+                grid-template-columns: 1fr;
+            }
+            
             .signal-legend {
                 flex-direction: column;
                 align-items: center;
+                gap: 10px;
+            }
+            
+            .coin-name {
+                flex-direction: column;
+                align-items: flex-start;
                 gap: 10px;
             }
         }
@@ -584,6 +869,78 @@
             .logo h1 {
                 font-size: 1.5rem;
             }
+            
+            .price-changes {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+        
+        /* Animations */
+        @keyframes slideIn {
+            from { 
+                transform: translateY(-20px); 
+                opacity: 0; 
+            }
+            to { 
+                transform: translateY(0); 
+                opacity: 1; 
+            }
+        }
+        
+        .card {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        /* Custom Notifications */
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: white;
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-width: 300px;
+            max-width: 500px;
+            transition: transform 0.3s ease;
+        }
+        
+        .notification-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .notification-toast.success {
+            border-left: 4px solid var(--success);
+        }
+        
+        .notification-toast.error {
+            border-left: 4px solid var(--danger);
+        }
+        
+        .notification-toast.warning {
+            border-left: 4px solid var(--warning);
+        }
+        
+        .notification-toast-icon {
+            font-size: 1.5rem;
+        }
+        
+        .notification-toast.success .notification-toast-icon {
+            color: var(--success);
+        }
+        
+        .notification-toast.error .notification-toast-icon {
+            color: var(--danger);
+        }
+        
+        .notification-toast.warning .notification-toast-icon {
+            color: var(--warning);
         }
     </style>
 </head>
@@ -594,9 +951,18 @@
             <div class="header-content">
                 <div class="logo">
                     <i class="fas fa-chart-line"></i>
-                    <h1>🚀 محلل إشارات العملات - الإصدار 2.0</h1>
+                    <div>
+                        <h1>
+                            <span class="version">v3.0</span>
+                            🚀 محلل إشارات العملات
+                        </h1>
+                        <div class="system-status">
+                            <div class="status-dot {{ 'healthy' if stats.system_status == 'healthy' else 'warning' if stats.system_status == 'warning' else 'unhealthy' }}"></div>
+                            <span>حالة النظام: {{ 'صحي' if stats.system_status == 'healthy' else 'تحذير' if stats.system_status == 'warning' else 'غير صحي' }}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="status">
+                <div class="status {{ stats.system_status }}">
                     <i class="fas fa-sync-alt"></i>
                     <span id="last-update-text">
                         {% if stats.last_update %}
@@ -636,261 +1002,420 @@
             </div>
         </div>
         
-        <!-- Statistics -->
-        <div class="stats-grid">
-            <div class="stat-card strong-buy-stat">
-                <i class="fas fa-rocket" style="color: var(--success);"></i>
-                <h3>{{ stats.strong_buy_signals }}</h3>
-                <p>شراء قوي</p>
-            </div>
-            <div class="stat-card buy-stat">
-                <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
-                <h3>{{ stats.buy_signals }}</h3>
-                <p>شراء</p>
-            </div>
-            <div class="stat-card neutral-stat">
-                <i class="fas fa-minus" style="color: var(--gray);"></i>
-                <h3>{{ stats.neutral_signals }}</h3>
-                <p>محايد</p>
-            </div>
-            <div class="stat-card sell-stat">
-                <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
-                <h3>{{ stats.sell_signals }}</h3>
-                <p>بيع</p>
-            </div>
-            <div class="stat-card strong-sell-stat">
-                <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
-                <h3>{{ stats.strong_sell_signals }}</h3>
-                <p>بيع قوي</p>
-            </div>
-            <div class="stat-card avg-stat">
-                <i class="fas fa-signal" style="color: var(--secondary);"></i>
-                <h3>{{ "%.1f"|format(stats.avg_signal) }}%</h3>
-                <p>متوسط القوة</p>
-            </div>
-        </div>
-        
-        <!-- Market Info -->
-        <div class="market-info">
-            <div class="market-info-item">
-                <h4><i class="fas fa-coins"></i> إجمالي العملات</h4>
-                <p>{{ stats.total_coins }}</p>
-            </div>
-            <div class="market-info-item">
-                <h4><i class="fas fa-check-circle"></i> العملات المحدثة</h4>
-                <p>{{ stats.updated_coins }}</p>
-            </div>
-            <div class="market-info-item">
-                <h4><i class="fas fa-bell"></i> إجمالي الإشعارات</h4>
-                <p>{{ stats.total_notifications }}</p>
-            </div>
-            <div class="market-info-item">
-                <h4><i class="fas fa-brain"></i> مؤشر الخوف والجشع</h4>
-                <p>
-                    {% for coin in coins %}
-                        {% if coin.fear_greed_value %}
-                            {{ coin.fear_greed_value }}
-                            {% if loop.first %}{% endif %}
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card strong-buy">
+                        <i class="fas fa-rocket" style="color: var(--success);"></i>
+                        <h3>{{ stats.strong_buy_signals }}</h3>
+                        <p>شراء قوي</p>
+                    </div>
+                    <div class="stat-card buy">
+                        <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
+                        <h3>{{ stats.buy_signals }}</h3>
+                        <p>شراء</p>
+                    </div>
+                    <div class="stat-card neutral">
+                        <i class="fas fa-minus" style="color: var(--gray);"></i>
+                        <h3>{{ stats.neutral_signals }}</h3>
+                        <p>محايد</p>
+                    </div>
+                    <div class="stat-card sell">
+                        <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
+                        <h3>{{ stats.sell_signals }}</h3>
+                        <p>بيع</p>
+                    </div>
+                    <div class="stat-card strong-sell">
+                        <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
+                        <h3>{{ stats.strong_sell_signals }}</h3>
+                        <p>بيع قوي</p>
+                    </div>
+                    <div class="stat-card avg">
+                        <i class="fas fa-signal" style="color: var(--secondary);"></i>
+                        <h3>{{ "%.1f"|format(stats.avg_signal) }}%</h3>
+                        <p>متوسط القوة</p>
+                    </div>
+                </div>
+                
+                <!-- Market Info -->
+                <div class="market-info">
+                    <div class="market-info-grid">
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-coins"></i> إجمالي العملات</h4>
+                            <p>{{ stats.total_coins }}</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-check-circle"></i> العملات المحدثة</h4>
+                            <p>{{ stats.updated_coins }}</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-bell"></i> إجمالي الإشعارات</h4>
+                            <p>{{ stats.total_notifications }}</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-brain"></i> مؤشر الخوف والجشع</h4>
+                            <p>{{ stats.fear_greed_index }}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Update Timer -->
+                <div class="update-timer">
+                    <div>
+                        <i class="fas fa-info-circle" style="color: var(--primary);"></i>
+                        <span style="margin-right: 10px;">آخر تحديث للبيانات</span>
+                    </div>
+                    <div class="timer-display" id="update-timer">
+                        {% if stats.last_update %}
+                            التحديث التالي خلال: 5:00
+                        {% else %}
+                            جاري التحديث...
                         {% endif %}
-                    {% endfor %}
-                </p>
-            </div>
-        </div>
-        
-        <!-- Last Update Info -->
-        <div class="last-update">
-            <div>
-                <i class="fas fa-info-circle" style="color: var(--primary);"></i>
-                <span style="margin-right: 10px;">آخر تحديث للبيانات</span>
-            </div>
-            <div id="update-timer" style="font-weight: 600;">
-                {% if stats.last_update %}
-                    التحديث التالي خلال: 5:00
-                {% else %}
-                    جاري التحديث...
-                {% endif %}
-            </div>
-        </div>
-        
-        <!-- Coins Cards -->
-        <div class="cards-grid" id="coins-container">
-            {% for coin in coins %}
-            <div class="card">
-                <div class="card-header">
-                    <div class="coin-info">
-                        <div class="coin-icon">
-                            {{ coin.symbol[:1] }}
+                    </div>
+                </div>
+                
+                <!-- Coins Cards -->
+                <div class="cards-grid" id="coins-container">
+                    {% for coin in coins %}
+                    <div class="card" data-symbol="{{ coin.symbol }}">
+                        <div class="card-header">
+                            <div class="coin-info">
+                                <div class="coin-icon">
+                                    {{ coin.symbol[:1] }}
+                                </div>
+                                <div class="coin-details">
+                                    <div class="coin-name">
+                                        <h3>{{ coin.name }}</h3>
+                                        <div class="signal-badge signal-{{ coin.signal_color }}">
+                                            {{ coin.signal_type }}
+                                        </div>
+                                    </div>
+                                    <div class="price-info">
+                                        <div class="current-price">${{ coin.formatted_price }}</div>
+                                        <div class="price-changes">
+                                            {% if coin.formatted_24h_change %}
+                                            <span class="price-change {{ 'positive' if coin.price_change_24h > 0 else 'negative' }}">
+                                                <i class="fas fa-{{ 'arrow-up' if coin.price_change_24h > 0 else 'arrow-down' }}"></i>
+                                                {{ coin.formatted_24h_change }} (24h)
+                                            </span>
+                                            {% endif %}
+                                            {% if coin.formatted_price_change and coin.price_change_since_last != 0 %}
+                                            <span class="price-change {{ 'positive' if coin.price_change_since_last > 0 else 'negative' }}">
+                                                <i class="fas fa-{{ 'arrow-up' if coin.price_change_since_last > 0 else 'arrow-down' }}"></i>
+                                                {{ coin.formatted_price_change }} (آخر تحديث)
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        {% if coin.formatted_volume_24h and coin.formatted_volume_24h != '0' %}
+                                        <div class="volume-info">
+                                            <i class="fas fa-chart-bar"></i> حجم 24h: {{ coin.formatted_volume_24h }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="coin-name">
-                            <h3>{{ coin.name }}</h3>
-                            <div class="price-info">
-                                <p>${{ coin.formatted_price }}</p>
-                                {% if coin.formatted_24h_change %}
-                                <span class="price-change {{ 'positive' if coin['24h_change'] > 0 else 'negative' }}">
-                                    <i class="fas fa-{{ 'arrow-up' if coin['24h_change'] > 0 else 'arrow-down' }}"></i>
-                                    {{ coin.formatted_24h_change }}
-                                </span>
-                                {% endif %}
-                                {% if coin.formatted_price_change and coin.price_change != 0 %}
-                                <small style="color: var(--gray);">
-                                    ({{ coin.formatted_price_change }})
+                        
+                        <div class="signal-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill fill-{{ coin.signal_color }}" 
+                                     style="width: {{ coin.total_percentage }}%;">
+                                </div>
+                            </div>
+                            <div class="strength-text">
+                                <span class="strength-label">قوة الإشارة</span>
+                                <span class="strength-value">{{ "%.1f"|format(coin.total_percentage) }}%</span>
+                            </div>
+                            <div style="text-align: center; margin-top: 5px; color: var(--gray); font-size: 0.9rem;">
+                                {{ coin.signal_strength }}
+                            </div>
+                        </div>
+                        
+                        <div class="indicators-section">
+                            <div class="indicators-title">
+                                <span>تفصيل المؤشرات:</span>
+                                <small style="color: var(--gray); font-size: 0.85rem;">
+                                    {% if coin.last_updated_str %}
+                                        <i class="far fa-clock"></i> {{ coin.last_updated_str }}
+                                    {% else %}
+                                        غير متوفر
+                                    {% endif %}
                                 </small>
-                                {% endif %}
                             </div>
-                            {% if coin.formatted_24h_volume and coin.formatted_24h_volume != '0' %}
-                            <small style="color: var(--gray); font-size: 0.8rem;">
-                                <i class="fas fa-chart-bar"></i> حجم 24h: {{ coin.formatted_24h_volume }}
-                            </small>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="signal-badge signal-{{ coin.signal_color }}">
-                        {{ coin.signal_type }}
-                    </div>
-                </div>
-                
-                <div class="signal-strength">
-                    <div class="strength-bar">
-                        <div class="strength-fill fill-{{ coin.signal_color }}" 
-                             id="strength-{{ coin.symbol }}" 
-                             style="width: {{ coin.total_percentage }}%;">
-                        </div>
-                    </div>
-                    <div class="strength-text">
-                        <span>قوة الإشارة</span>
-                        <span class="strength-value">{{ "%.1f"|format(coin.total_percentage) }}%</span>
-                    </div>
-                    <div style="text-align: center; margin-top: 5px; color: var(--gray); font-size: 0.9rem;">
-                        {{ coin.signal_strength }}
-                    </div>
-                </div>
-                
-                <div class="indicators-list">
-                    <h4 style="margin-bottom: 15px; color: var(--dark);">تفصيل المؤشرات:</h4>
-                    {% for indicator in coin.indicators %}
-                    <div class="indicator-item">
-                        <div class="tooltip indicator-name">
-                            <div class="indicator-dot" style="background-color: {{ get_indicator_color(indicator.name) }};"></div>
-                            <span>{{ indicator.display_name }}</span>
-                            <span class="tooltiptext">{{ indicator.description }}</span>
-                        </div>
-                        <div style="display: flex; align-items: center;">
-                            <div class="indicator-bar">
-                                <div class="indicator-fill" style="width: {{ indicator.raw_score }}%; background-color: {{ get_indicator_color(indicator.name) }};"></div>
-                            </div>
-                            <div class="indicator-value">{{ "%.1f"|format(indicator.raw_score) }}%</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                
-                <div style="margin-top: 20px; font-size: 0.85rem; color: var(--gray); text-align: center;">
-                    <i class="far fa-clock"></i>
-                    {% if coin.last_updated_str %}
-                        {{ coin.last_updated_str }}
-                    {% else %}
-                        غير متوفر
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        
-        <!-- Charts and Notifications -->
-        <div class="dashboard-section">
-            <h2 class="section-title">
-                <i class="fas fa-bell"></i> 
-                الإشعارات الأخيرة
-                {% if stats.total_notifications > 0 %}
-                <span class="notification-badge">{{ stats.total_notifications }}</span>
-                {% endif %}
-            </h2>
-            <div class="notifications-list">
-                {% if notifications %}
-                    {% for notification in notifications %}
-                    <div class="notification-item {{ notification.type }}">
-                        <div>
-                            {% if notification.type == 'strong_buy' %}
-                                <i class="fas fa-rocket" style="color: var(--success);"></i>
-                            {% elif notification.type == 'buy' %}
-                                <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
-                            {% elif notification.type == 'strong_sell' %}
-                                <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
-                            {% elif notification.type == 'sell' %}
-                                <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
-                            {% else %}
-                                <i class="fas fa-exchange-alt" style="color: var(--secondary);"></i>
-                            {% endif %}
-                        </div>
-                        <div style="flex: 1;">
-                            {{ notification.message }}
-                            <div class="notification-time">
-                                {{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}
-                                {% if notification.signal_strength %}
-                                | قوة: {{ "%.1f"|format(notification.signal_strength) }}%
-                                {% endif %}
-                                | السعر: ${{ "%.2f"|format(notification.price) }}
+                            <div class="indicators-list">
+                                {% for indicator in coin.indicators %}
+                                <div class="indicator-item">
+                                    <div class="indicator-color" style="background-color: {{ indicator.color }};"></div>
+                                    <div class="indicator-name">
+                                        {{ indicator.display_name }}
+                                        <div class="tooltip-content">
+                                            {{ indicator.description }}
+                                            <div style="margin-top: 5px; font-size: 0.75rem; color: #ccc;">
+                                                الوزن: {{ "%.0f"|format(indicator.weight) }}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="indicator-bar">
+                                        <div class="indicator-fill" 
+                                             style="width: {{ indicator.raw_score }}%; background-color: {{ indicator.color }};">
+                                        </div>
+                                    </div>
+                                    <div class="indicator-value">{{ "%.1f"|format(indicator.raw_score) }}%</div>
+                                </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
                     {% endfor %}
-                {% else %}
-                    <div style="text-align: center; padding: 30px; color: var(--gray);">
-                        <i class="far fa-bell-slash" style="font-size: 2rem; margin-bottom: 15px;"></i>
-                        <p>لا توجد إشعارات حالياً</p>
+                </div>
+                
+                <!-- Chart -->
+                <div class="chart-card">
+                    <h2 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-chart-line"></i> تطور الإشارات
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="signalChart"></canvas>
                     </div>
-                {% endif %}
+                </div>
             </div>
-        </div>
-        
-        <!-- Signal History Chart -->
-        <div class="dashboard-section">
-            <h2 class="section-title"><i class="fas fa-chart-bar"></i> تطور الإشارات</h2>
-            <div class="chart-container">
-                <canvas id="signalChart"></canvas>
+            
+            <!-- Right Column -->
+            <div class="right-column">
+                <!-- Notifications -->
+                <div class="notifications-card">
+                    <div class="notifications-header">
+                        <div class="notifications-title">
+                            <i class="fas fa-bell"></i> 
+                            الإشعارات الأخيرة
+                            {% if stats.total_notifications > 0 %}
+                            <span class="notification-badge">{{ stats.total_notifications }}</span>
+                            {% endif %}
+                        </div>
+                        <button class="update-btn" onclick="refreshNotifications()" style="padding: 8px 15px; font-size: 0.9rem;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="notifications-list">
+                        {% if notifications %}
+                            {% for notification in notifications %}
+                            <div class="notification-item {{ notification.notification_type }}">
+                                <div class="notification-content">
+                                    <div class="notification-icon">
+                                        {% if notification.notification_type == 'strong_buy' %}
+                                            <i class="fas fa-rocket" style="color: var(--success);"></i>
+                                        {% elif notification.notification_type == 'buy' %}
+                                            <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
+                                        {% elif notification.notification_type == 'strong_sell' %}
+                                            <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
+                                        {% elif notification.notification_type == 'sell' %}
+                                            <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
+                                        {% else %}
+                                            <i class="fas fa-exchange-alt" style="color: var(--secondary);"></i>
+                                        {% endif %}
+                                    </div>
+                                    <div class="notification-text">
+                                        <div class="notification-message">{{ notification.message }}</div>
+                                        <div class="notification-time">
+                                            {{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                            {% if notification.signal_strength %}
+                                            | قوة: {{ "%.1f"|format(notification.signal_strength) }}%
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="empty-notifications">
+                                <i class="far fa-bell-slash"></i>
+                                <p>لا توجد إشعارات حالياً</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- System Info -->
+                <div class="card">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-info-circle"></i> معلومات النظام
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">الإصدار:</span>
+                            <span style="font-weight: 600;">3.0.0</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">فاصل التحديث:</span>
+                            <span style="font-weight: 600;">5 دقائق</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">عدد المؤشرات:</span>
+                            <span style="font-weight: 600;">6 مؤشرات</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">حالة API:</span>
+                            <span style="font-weight: 600; color: var(--success);">متصل</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Weights Info -->
+                <div class="card">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-balance-scale"></i> أوزان المؤشرات
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        {% for indicator, weight in indicator_weights.items() %}
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.9rem;">{{ get_indicator_display_name(indicator) }}</span>
+                            <span style="font-weight: 600; color: var(--primary);">{{ "%.0f"|format(weight * 100) }}%</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </div>
         
         <!-- Footer -->
         <footer>
-            <p>🚀 Crypto Signal Analyzer v2.0 | يتم التحديث تلقائياً كل 5 دقائق</p>
-            <p style="margin-top: 10px; font-size: 0.8rem;">
-                <i class="fas fa-exclamation-triangle"></i>
-                هذا التطبيق لأغراض تعليمية وتحليلية فقط وليس نصيحة استثمارية
+            <p>🚀 Crypto Signal Analyzer v3.0 | نظام متقدم لتحليل إشارات العملات المشفرة</p>
+            <p style="margin-top: 5px; font-size: 0.85rem;">
+                يتم التحديث تلقائياً كل 5 دقائق | تحديث يدوي متاح
             </p>
-            <p style="margin-top: 10px; font-size: 0.8rem; color: var(--primary);">
-                <i class="fas fa-code"></i> نظام المؤشرات المتقدم مع 6 مؤشرات رئيسية | Python 3.11
+            <div class="disclaimer">
+                <p style="margin: 0; font-size: 0.8rem;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    هذا التطبيق لأغراض تعليمية وتحليلية فقط. الإشارات المقدمة ليست نصيحة استثمارية ولا ضماناً للربح.
+                    التداول في العملات المشفرة يحمل مخاطر عالية وقد يؤدي إلى خسارة كامل رأس المال المستثمر.
+                </p>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.8rem; color: var(--primary);">
+                <i class="fas fa-code"></i> نظام المؤشرات المتقدم مع التحقق الآلي | Python 3.11
             </p>
         </footer>
     </div>
     
+    <!-- Notification Toast -->
+    <div id="notificationToast" class="notification-toast">
+        <div class="notification-toast-icon">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="notification-toast-message"></div>
+    </div>
+    
     <script>
-        // دالة للحصول على ألوان المؤشرات
-        function getIndicatorColor(indicatorKey) {
-            const colors = {
-                'trend_strength': '#2E86AB',
-                'momentum': '#A23B72',
-                'volume_analysis': '#3BB273',
-                'volatility': '#F18F01',
-                'market_sentiment': '#6C757D',
-                'price_structure': '#8F2D56'
-            };
-            return colors[indicatorKey] || '#2E86AB';
+        // البيانات العامة
+        const AppConfig = {
+            UPDATE_INTERVAL: 300, // 5 دقائق بالثواني
+            SIGNAL_THRESHOLDS: {
+                strong_buy: 75,
+                buy: 60,
+                neutral_high: 55,
+                neutral_low: 45,
+                sell: 40,
+                strong_sell: 25
+            }
+        };
+        
+        let updateTimerInterval = null;
+        let signalChart = null;
+        
+        // ======================
+        // وظائف المساعدة
+        // ======================
+        
+        function formatNumber(value) {
+            if (!value && value !== 0) return "0";
+            
+            value = parseFloat(value);
+            if (isNaN(value)) return "0";
+            
+            if (Math.abs(value) >= 1_000_000_000) {
+                return (value / 1_000_000_000).toFixed(2) + 'B';
+            } else if (Math.abs(value) >= 1_000_000) {
+                return (value / 1_000_000).toFixed(2) + 'M';
+            } else if (Math.abs(value) >= 1_000) {
+                return (value / 1_000).toFixed(2) + 'K';
+            } else if (Math.abs(value) >= 1) {
+                return value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            } else if (Math.abs(value) >= 0.01) {
+                return value.toFixed(4);
+            } else {
+                return value.toFixed(6);
+            }
         }
         
-        // دالة للحصول على لون الإشارة بناءً على النسبة
-        function getSignalColor(percentage) {
-            if (percentage >= 75) return 'success';
-            if (percentage >= 60) return 'info';
-            if (percentage >= 45) return 'secondary';
-            if (percentage >= 25) return 'warning';
-            return 'danger';
+        function formatPercentage(value) {
+            if (!value && value !== 0) return "0.00%";
+            
+            value = parseFloat(value);
+            if (isNaN(value)) return "0.00%";
+            
+            const prefix = value > 0 ? "+" : "";
+            return prefix + value.toFixed(2) + "%";
         }
         
-        // تحديث يدوي
+        function formatTimeDelta(timestamp) {
+            if (!timestamp) return "غير معروف";
+            
+            const now = luxon.DateTime.now();
+            const past = luxon.DateTime.fromISO(timestamp);
+            const diff = now.diff(past, ['days', 'hours', 'minutes', 'seconds']);
+            
+            if (diff.days > 0) {
+                return `قبل ${diff.days} يوم${diff.days > 1 ? 'ين' : ''}`;
+            } else if (diff.hours > 0) {
+                return `قبل ${Math.floor(diff.hours)} ساعة`;
+            } else if (diff.minutes > 0) {
+                return `قبل ${Math.floor(diff.minutes)} دقيقة`;
+            } else {
+                return `قبل ${Math.floor(diff.seconds)} ثانية`;
+            }
+        }
+        
+        // ======================
+        // إدارة الإشعارات
+        // ======================
+        
+        function showNotification(message, type = 'success') {
+            const toast = document.getElementById('notificationToast');
+            const icon = toast.querySelector('.notification-toast-icon i');
+            const messageEl = toast.querySelector('.notification-toast-message');
+            
+            // تحديث المحتوى
+            messageEl.textContent = message;
+            
+            // تحديث النوع
+            toast.className = 'notification-toast';
+            toast.classList.add(type);
+            
+            // تحديث الأيقونة
+            icon.className = type === 'success' ? 'fas fa-check-circle' :
+                            type === 'error' ? 'fas fa-exclamation-circle' :
+                            'fas fa-exclamation-triangle';
+            
+            // عرض الإشعار
+            toast.classList.add('show');
+            
+            // إخفاء بعد 5 ثوان
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+        
+        // ======================
+        // تحديث البيانات
+        // ======================
+        
         async function manualUpdate() {
             const btn = document.getElementById('updateBtn');
             const originalText = btn.innerHTML;
+            const originalState = btn.disabled;
             
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
             btn.disabled = true;
@@ -905,82 +1430,61 @@
                 
                 const result = await response.json();
                 
-                if (result.status === 'success') {
-                    // عرض رسالة نجاح
-                    showNotification('تم تحديث البيانات بنجاح', 'success');
+                if (result.status === 'success' || result.status === 'warning') {
+                    showNotification(result.message, result.status);
                     
-                    // إعادة تحميل الصفحة بعد 2 ثانية
+                    // إعادة تحميل البيانات بعد ثانيتين
                     setTimeout(() => {
                         location.reload();
                     }, 2000);
                 } else {
-                    showNotification('حدث خطأ في التحديث', 'error');
+                    showNotification(result.message, 'error');
                     btn.innerHTML = originalText;
-                    btn.disabled = false;
+                    btn.disabled = originalState;
                 }
             } catch (error) {
                 showNotification('خطأ في الاتصال بالخادم', 'error');
                 console.error('Update error:', error);
                 btn.innerHTML = originalText;
-                btn.disabled = false;
+                btn.disabled = originalState;
             }
         }
         
-        // عرض الإشعارات
-        function showNotification(message, type) {
-            // إنشاء عنصر الإشعار
-            const notification = document.createElement('div');
-            notification.style.cssText = `
-                position: fixed;
-                top: 20px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: ${type === 'success' ? 'var(--success)' : 'var(--danger)'};
-                color: white;
-                padding: 15px 25px;
-                border-radius: 10px;
-                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-                z-index: 1000;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                animation: slideIn 0.3s ease;
-            `;
-            
-            notification.innerHTML = `
-                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-                ${message}
-            `;
-            
-            document.body.appendChild(notification);
-            
-            // إزالة الإشعار بعد 3 ثوان
-            setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => {
-                    document.body.removeChild(notification);
-                }, 300);
-            }, 3000);
+        async function refreshNotifications() {
+            try {
+                const response = await fetch('/api/notifications?limit=10');
+                const data = await response.json();
+                
+                // هنا يمكن تحديث قائمة الإشعارات ديناميكياً
+                // لكن الأسهل هو إعادة تحميل الصفحة
+                location.reload();
+            } catch (error) {
+                console.error('Error refreshing notifications:', error);
+            }
         }
         
-        // تحديث المؤقت
-        function updateTimer() {
+        // ======================
+        // المؤقت
+        // ======================
+        
+        function startUpdateTimer() {
             const timerElement = document.getElementById('update-timer');
-            if (!timerElement || timerElement.textContent.includes('جاري التحديث')) return;
+            if (!timerElement) return;
             
-            let seconds = 300; // 5 دقائق
+            let seconds = AppConfig.UPDATE_INTERVAL;
             
-            // بدء المؤقت
-            const interval = setInterval(() => {
+            // تحديث المؤقت كل ثانية
+            updateTimerInterval = setInterval(() => {
                 const minutes = Math.floor(seconds / 60);
                 const secs = seconds % 60;
                 
                 timerElement.textContent = `التحديث التالي خلال: ${minutes}:${secs < 10 ? '0' : ''}${secs}`;
                 
                 if (seconds <= 0) {
-                    clearInterval(interval);
+                    clearInterval(updateTimerInterval);
                     timerElement.textContent = 'جاري التحديث...';
-                    // تحديث تلقائي بعد انتهاء الوقت
+                    
+                    // تحديث تلقائي
                     setTimeout(() => {
                         manualUpdate();
                     }, 1000);
@@ -990,131 +1494,176 @@
             }, 1000);
         }
         
-        // تهيئة الرسم البياني
-        function initChart() {
+        // ======================
+        // الرسم البياني
+        // ======================
+        
+        async function initChart() {
             const ctx = document.getElementById('signalChart');
             if (!ctx) return;
             
-            const canvasCtx = ctx.getContext('2d');
-            
-            // جلب البيانات التاريخية من API
-            fetch('/api/history?limit=20')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.history || data.history.length === 0) {
-                        // بيانات تجريبية إذا لم توجد بيانات تاريخية
-                        createDemoChart(canvasCtx);
-                        return;
-                    }
-                    
-                    // تحضير البيانات للرسم البياني
-                    const labels = data.history.map(entry => {
-                        const date = new Date(entry.timestamp);
-                        return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+            try {
+                // جلب البيانات التاريخية
+                const response = await fetch('/api/history?limit=20');
+                const data = await response.json();
+                
+                if (!data.history || data.history.length === 0) {
+                    createDemoChart(ctx);
+                    return;
+                }
+                
+                // تحضير البيانات
+                const labels = data.history.map(entry => {
+                    return luxon.DateTime.fromISO(entry.timestamp).toFormat('HH:mm');
+                }).reverse();
+                
+                // إنشاء مجموعات البيانات لكل عملة
+                const datasets = [];
+                const coinColors = {
+                    'BTC/USDT': '#2E86AB',
+                    'ETH/USDT': '#A23B72',
+                    'BNB/USDT': '#3BB273'
+                };
+                
+                const coinNames = {
+                    'BTC/USDT': 'Bitcoin',
+                    'ETH/USDT': 'Ethereum',
+                    'BNB/USDT': 'BNB'
+                };
+                
+                // إنشاء مجموعة بيانات لكل عملة
+                for (const symbol of Object.keys(coinColors)) {
+                    const chartData = data.history.map(entry => {
+                        return entry.signals[symbol] || 50;
                     }).reverse();
                     
-                    const datasets = [];
-                    const colors = ['#2E86AB', '#A23B72', '#3BB273'];
-                    let colorIndex = 0;
-                    
-                    // إنشاء مجموعة بيانات لكل عملة
-                    for (const [symbol, coinData] of Object.entries(COIN_DATA || {})) {
-                        const coinName = coinData.name;
-                        const chartData = data.history.map(entry => {
-                            return entry.signals[symbol] || 50; // قيمة افتراضية إذا لم تكن موجودة
-                        }).reverse();
-                        
-                        datasets.push({
-                            label: coinName,
-                            data: chartData,
-                            borderColor: colors[colorIndex % colors.length],
-                            backgroundColor: colors[colorIndex % colors.length] + '20',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: true,
-                            pointRadius: 3,
-                            pointHoverRadius: 5
-                        });
-                        
-                        colorIndex++;
-                    }
-                    
-                    // إنشاء الرسم البياني
-                    new Chart(canvasCtx, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: datasets
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                                legend: {
-                                    position: 'top',
-                                    rtl: true,
-                                    labels: {
-                                        padding: 20,
-                                        usePointStyle: true
-                                    }
-                                },
-                                tooltip: {
-                                    rtl: true,
-                                    mode: 'index',
-                                    intersect: false,
-                                    callbacks: {
-                                        label: function(context) {
-                                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
-                                        }
-                                    }
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: false,
-                                    min: 0,
-                                    max: 100,
-                                    title: {
-                                        display: true,
-                                        text: 'قوة الإشارة (%)',
-                                        font: {
-                                            size: 14
-                                        }
-                                    },
-                                    grid: {
-                                        color: 'rgba(0,0,0,0.05)'
-                                    }
-                                },
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'الوقت',
-                                        font: {
-                                            size: 14
-                                        }
-                                    },
-                                    grid: {
-                                        color: 'rgba(0,0,0,0.05)'
-                                    }
-                                }
-                            },
-                            interaction: {
-                                intersect: false,
-                                mode: 'nearest'
-                            },
-                            animation: {
-                                duration: 1000
-                            }
-                        }
+                    datasets.push({
+                        label: coinNames[symbol],
+                        data: chartData,
+                        borderColor: coinColors[symbol],
+                        backgroundColor: coinColors[symbol] + '20',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: coinColors[symbol],
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
                     });
-                })
-                .catch(error => {
-                    console.error('Error loading chart data:', error);
-                    createDemoChart(canvasCtx);
+                }
+                
+                // تدمير الرسم البياني القديم إذا موجود
+                if (signalChart) {
+                    signalChart.destroy();
+                }
+                
+                // إنشاء الرسم البياني الجديد
+                signalChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                rtl: true,
+                                labels: {
+                                    padding: 20,
+                                    usePointStyle: true,
+                                    font: {
+                                        family: 'Cairo',
+                                        size: 12
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                rtl: true,
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleFont: {
+                                    family: 'Cairo',
+                                    size: 12
+                                },
+                                bodyFont: {
+                                    family: 'Cairo',
+                                    size: 11
+                                },
+                                padding: 10,
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                min: 0,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'قوة الإشارة (%)',
+                                    font: {
+                                        family: 'Cairo',
+                                        size: 12,
+                                        weight: 'bold'
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                },
+                                ticks: {
+                                    font: {
+                                        family: 'Cairo',
+                                        size: 10
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'الوقت',
+                                    font: {
+                                        family: 'Cairo',
+                                        size: 12,
+                                        weight: 'bold'
+                                    }
+                                },
+                                grid: {
+                                    color: 'rgba(0, 0, 0, 0.05)'
+                                },
+                                ticks: {
+                                    font: {
+                                        family: 'Cairo',
+                                        size: 10
+                                    },
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            }
+                        },
+                        animation: {
+                            duration: 1000,
+                            easing: 'easeOutQuart'
+                        }
+                    }
                 });
+                
+            } catch (error) {
+                console.error('Error loading chart data:', error);
+                createDemoChart(ctx);
+            }
         }
         
-        // إنشاء رسم بياني تجريبي
         function createDemoChart(ctx) {
             const labels = Array.from({length: 10}, (_, i) => `${10 - i}د`);
             
@@ -1125,7 +1674,7 @@
                     borderColor: '#2E86AB',
                     backgroundColor: '#2E86AB20',
                     borderWidth: 2,
-                    tension: 0.4,
+                    tension: 0.3,
                     fill: true
                 },
                 {
@@ -1134,7 +1683,7 @@
                     borderColor: '#A23B72',
                     backgroundColor: '#A23B7220',
                     borderWidth: 2,
-                    tension: 0.4,
+                    tension: 0.3,
                     fill: true
                 },
                 {
@@ -1143,12 +1692,12 @@
                     borderColor: '#3BB273',
                     backgroundColor: '#3BB27320',
                     borderWidth: 2,
-                    tension: 0.4,
+                    tension: 0.3,
                     fill: true
                 }
             ];
             
-            new Chart(ctx, {
+            signalChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -1160,16 +1709,7 @@
                     plugins: {
                         legend: {
                             position: 'top',
-                            rtl: true,
-                            labels: {
-                                padding: 20,
-                                usePointStyle: true
-                            }
-                        },
-                        tooltip: {
-                            rtl: true,
-                            mode: 'index',
-                            intersect: false
+                            rtl: true
                         }
                     },
                     scales: {
@@ -1179,65 +1719,24 @@
                             max: 100,
                             title: {
                                 display: true,
-                                text: 'قوة الإشارة (%)',
-                                font: {
-                                    size: 14
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0,0,0,0.05)'
+                                text: 'قوة الإشارة (%)'
                             }
                         },
                         x: {
                             title: {
                                 display: true,
-                                text: 'الوقت (دقائق)',
-                                font: {
-                                    size: 14
-                                }
-                            },
-                            grid: {
-                                color: 'rgba(0,0,0,0.05)'
+                                text: 'الوقت (دقائق)'
                             }
                         }
-                    },
-                    interaction: {
-                        intersect: false,
-                        mode: 'nearest'
-                    },
-                    animation: {
-                        duration: 1000
                     }
                 }
             });
         }
         
-        // تحديث بيانات الصفحة بدون إعادة تحميل
-        async function refreshData() {
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
-                
-                // تحديث وقت التحديث الأخير
-                const lastUpdateElement = document.getElementById('last-update-text');
-                if (lastUpdateElement && data.last_update) {
-                    const updateTime = new Date(data.last_update);
-                    const now = new Date();
-                    const diffMinutes = Math.floor((now - updateTime) / 60000);
-                    
-                    if (diffMinutes < 1) {
-                        lastUpdateElement.textContent = 'آخر تحديث: الآن';
-                    } else {
-                        lastUpdateElement.textContent = `آخر تحديث: منذ ${diffMinutes} دقيقة`;
-                    }
-                }
-                
-            } catch (error) {
-                console.error('Error refreshing data:', error);
-            }
-        }
+        // ======================
+        // تأثيرات التحميل
+        // ======================
         
-        // تطبيق تأثيرات تحميل للشرائط
         function animateStrengthBars() {
             document.querySelectorAll('.strength-fill').forEach(fill => {
                 const width = fill.style.width;
@@ -1256,74 +1755,86 @@
             });
         }
         
-        // تهيئة نصائح المؤشرات
-        function initTooltips() {
-            document.querySelectorAll('.tooltip').forEach(tooltip => {
-                tooltip.addEventListener('mouseenter', function() {
-                    const tooltipText = this.querySelector('.tooltiptext');
-                    if (tooltipText) {
-                        tooltipText.style.visibility = 'visible';
-                        tooltipText.style.opacity = '1';
-                    }
-                });
+        // ======================
+        // فحص صحة النظام
+        // ======================
+        
+        async function checkSystemHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
                 
-                tooltip.addEventListener('mouseleave', function() {
-                    const tooltipText = this.querySelector('.tooltiptext');
-                    if (tooltipText) {
-                        tooltipText.style.visibility = 'hidden';
-                        tooltipText.style.opacity = '0';
-                    }
-                });
-            });
+                // تحديث وقت التحديث الأخير
+                const lastUpdateElement = document.getElementById('last-update-text');
+                if (lastUpdateElement && data.last_update) {
+                    lastUpdateElement.textContent = formatTimeDelta(data.last_update);
+                }
+                
+                // تحديث حالة النظام
+                const statusDot = document.querySelector('.status-dot');
+                const statusText = document.querySelector('.system-status span');
+                
+                if (statusDot && statusText) {
+                    statusDot.className = 'status-dot ' + data.status;
+                    statusText.textContent = 'حالة النظام: ' + 
+                        (data.status === 'healthy' ? 'صحي' : 
+                         data.status === 'warning' ? 'تحذير' : 'غير صحي');
+                }
+                
+                // إعادة ضبط المؤقت إذا كان النظام صحي
+                if (data.status === 'healthy' && !updateTimerInterval) {
+                    startUpdateTimer();
+                }
+                
+            } catch (error) {
+                console.error('Error checking system health:', error);
+            }
         }
         
-        // إضافة أنماط CSS للحركات
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideIn {
-                from { top: -100px; opacity: 0; }
-                to { top: 20px; opacity: 1; }
-            }
-            
-            @keyframes slideOut {
-                from { top: 20px; opacity: 1; }
-                to { top: -100px; opacity: 0; }
-            }
-            
-            .text-success { color: var(--success); }
-            .text-danger { color: var(--danger); }
-            .text-warning { color: var(--warning); }
-            .text-info { color: var(--primary); }
-        `;
-        document.head.appendChild(style);
+        // ======================
+        // تهيئة الصفحة
+        // ======================
         
-        // عند تحميل الصفحة
         document.addEventListener('DOMContentLoaded', function() {
-            // تخزين بيانات العملات للاستخدام في الرسم البياني
-            window.COIN_DATA = {
-                {% for coin in coins %}
-                '{{ coin.symbol }}': {
-                    name: '{{ coin.name }}',
-                    color: getIndicatorColor('{{ coin.symbol }}'),
-                    data: []
-                }{% if not loop.last %},{% endif %}
-                {% endfor %}
-            };
-            
-            // تهيئة المؤقت
-            updateTimer();
+            // بدء المؤقت
+            startUpdateTimer();
             
             // تحريك الشرائط
             animateStrengthBars();
             
-            // تهيئة نصائح المؤشرات
-            initTooltips();
-            
-            // تهيئة الرسم البياني بعد تحميل الصفحة
+            // تهيئة الرسم البياني
             setTimeout(initChart, 1000);
             
-            // تحديث البيانات كل 30 ثانية
-            setInterval(refreshData, 30000);
+            // فحص صحة النظام كل 30 ثانية
+            setInterval(checkSystemHealth, 30000);
+            
+            // تحديث وقت التحديث كل دقيقة
+            setInterval(() => {
+                const lastUpdateElement = document.getElementById('last-update-text');
+                if (lastUpdateElement) {
+                    const currentText = lastUpdateElement.textContent;
+                    if (currentText.startsWith('قبل')) {
+                        // تحديث النص ليعكس الوقت الحقيقي
+                        // (في تطبيق حقيقي، سنجلب البيانات من API)
+                    }
+                }
+            }, 60000);
+            
+            // إضافة تأثيرات للبطاقات
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+        });
+        
+        // ======================
+        // إدارة النوافذ المنبثقة
+        // ======================
+        
+        window.addEventListener('beforeunload', function() {
+            if (updateTimerInterval) {
+                clearInterval(updateTimerInterval);
+            }
         });
     </script>
 </body>

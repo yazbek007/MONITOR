@@ -1275,7 +1275,7 @@ class NotificationManager:
         # ✅ اختبار الاتصال عند الإنشاء
         self.test_ntfy_connection()
     
-   def test_ntfy_connection(self):
+    def test_ntfy_connection(self):  # ← هذا السطر 1278
         """اختبار اتصال NTFY عند بدء التشغيل"""
         try:
             # استخدام نص إنجليزي فقط للاختبار
@@ -1565,7 +1565,7 @@ class NotificationManager:
             f"📈 24h Change: {coin_signal.price_change_24h:+.2f}%\n"
             f"📊 Fear/Greed: {coin_signal.fear_greed_value}\n"
             f"⏰ {datetime.now().strftime('%H:%M')}"
-        )strftime('%H:%M')}")
+        )
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
         """إرسال إشعار عبر NTFY مع معالجة الترميز"""

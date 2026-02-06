@@ -1513,7 +1513,7 @@ class NotificationManager:
                 'sell': 'chart_decreasing,orange_circle',
                 'significant_change': 'arrows_counterclockwise,yellow_circle',
                 'heartbeat': 'heart,blue_circle',
-                 'test': 'test_tube,white_circle'
+                'test': 'test_tube,white_circle'
             }
     
             # استخدام عنوان إنجليزي فقط لتجنب مشاكل الترميز
@@ -1526,17 +1526,28 @@ class NotificationManager:
                 'heartbeat': 'System Heartbeat',
                 'test': 'Test Notification'
             }
-    
+         
+            # ✅ تصحيح قيم Priority حسب توثيق NTFY
+            # القيم المسموحة: 1 (min), 2 (low), 3 (default), 4 (high), 5 (max)
+            priority_map = {
+                'high': '4',    # أو "high"
+                'normal': '3',  # أو "default" 
+                'low': '2',     # أو "low"
+                'default': '3'  # القيمة الافتراضية
+            }
+           
+            priority_value = priority_map.get(priority, '3')
+      
             headers = {
                 "Title": title_map.get(notification_type, "Crypto Signal"),
-                "Priority": priority,
+                "Priority": priority_value,  # ✅ استخدام القيمة الصحيحة
                 "Tags": tags.get(notification_type, 'loudspeaker'),
-                "Content-Type": "text/plain; charset=utf-8"  # ← تأكيد ترميز UTF-8
+                "Content-Type": "text/plain; charset=utf-8"
             }
-    
-            logger.info(f"📤 Sending {notification_type} notification")
+     
+            logger.info(f"📤 Sending {notification_type} notification (Priority: {priority_value})")
             logger.info(f"   URL: {ExternalAPIConfig.NTFY_URL}")
-            logger.debug(f"   Message preview: {message[:100]}")
+            logger.debug(f"   Headers: {headers}")
     
             # إرسال مع ضبط ترميز UTF-8 صراحة
             response = requests.post(
@@ -1552,7 +1563,7 @@ class NotificationManager:
                 logger.info("✅ Notification sent successfully")
                 return True
             else:
-                logger.error(f"❌ Failed to send: {response.status_code} - {response.text[:100]}")
+                logger.error(f"❌ Failed to send: {response.status_code} - {response.text}")
                 return False
         
         except requests.exceptions.Timeout:
@@ -1564,7 +1575,7 @@ class NotificationManager:
         except Exception as e:
             logger.error(f"❌ Unexpected error: {e}")
             return False
-
+        
     def _send_with_ascii_fallback(self, original_message: str, notification_type: str, priority: str) -> bool:
         """إرسال بإسقاط النصوص العربية إذا فشل الترميز"""
         try:

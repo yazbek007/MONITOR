@@ -1,5 +1,5 @@
 """
-Crypto Signal Analyzer Bot - نسخة محدثة
+Crypto Signal Analyzer Bot - نسخة مع pandas-ta
 """
 
 import os
@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 import ccxt
 import requests
-import talib  # استخدام talib بدلاً من ta
+import pandas_ta as ta  # استبدال talib بـ pandas_ta
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -109,15 +109,20 @@ class BinanceDataFetcher:
         return ticker['last'] if ticker else 0
 
 class IndicatorsCalculator:
-    """فئة لحساب المؤشرات باستخدام TA-Lib"""
+    """فئة لحساب المؤشرات باستخدام pandas_ta"""
     
     @staticmethod
     def calculate_rsi(df, period=14):
-        """حساب مؤشر RSI باستخدام TA-Lib"""
+        """حساب مؤشر RSI باستخدام pandas_ta"""
         try:
-            rsi = talib.RSI(df['close'].values, timeperiod=period)[-1]
+            # استخدام pandas_ta لحساب RSI
+            rsi_series = ta.rsi(df['close'], length=period)
+            rsi = rsi_series.iloc[-1] if not rsi_series.empty else 50
             
             # تحويل RSI إلى نسبة مئوية للإشارة
+            if pd.isna(rsi):
+                return 50
+            
             if rsi <= 30:
                 return 100  # تشبع بيعي قوي
             elif rsi >= 70:
@@ -128,8 +133,9 @@ class IndicatorsCalculator:
                     return max(0, 100 - ((rsi - 50) / 20 * 100))
                 else:
                     return min(100, ((50 - rsi) / 20 * 100))
-        except:
-            return 50  # قيمة افتراضية في حالة الخطأ
+        except Exception as e:
+            print(f"Error calculating RSI: {e}")
+            return 50
     
     @staticmethod
     def calculate_volume_signal(df):
@@ -156,12 +162,18 @@ class IndicatorsCalculator:
     
     @staticmethod
     def calculate_moving_averages_signal(df):
-        """حساب إشارة المتوسطات المتحركة"""
+        """حساب إشارة المتوسطات المتحركة باستخدام pandas_ta"""
         try:
-            # حساب المتوسطات باستخدام TA-Lib
-            ema_20 = talib.EMA(df['close'].values, timeperiod=20)[-1]
-            ema_50 = talib.EMA(df['close'].values, timeperiod=50)[-1]
-            ema_200 = talib.EMA(df['close'].values, timeperiod=200)[-1]
+            # حساب المتوسطات باستخدام pandas_ta
+            ema_20_series = ta.ema(df['close'], length=20)
+            ema_50_series = ta.ema(df['close'], length=50)
+            ema_200_series = ta.ema(df['close'], length=200)
+            
+            # الحصول على القيم الأخيرة
+            ema_20 = ema_20_series.iloc[-1] if not ema_20_series.empty else None
+            ema_50 = ema_50_series.iloc[-1] if not ema_50_series.empty else None
+            ema_200 = ema_200_series.iloc[-1] if not ema_200_series.empty else None
+            
             current_price = df['close'].iloc[-1]
             
             # تقييم الترتيب
@@ -224,9 +236,8 @@ class IndicatorsCalculator:
                 return 50
             
             # استخدام القيمة السوقية التقريبية (مبسطة)
-            # يمكن تعديل هذه القيمة حسب العملة
             if "BTC" in df.index.name or "BTC" in str(df.columns):
-                market_cap = current_price * 19_000_000  # تقدير تقريبي
+                market_cap = current_price * 19_000_000
             elif "ETH" in df.index.name or "ETH" in str(df.columns):
                 market_cap = current_price * 120_000_000
             elif "BNB" in df.index.name or "BNB" in str(df.columns):
@@ -250,6 +261,23 @@ class IndicatorsCalculator:
                 return 0
         except:
             return 50
+    
+    @staticmethod
+    def calculate_macd_signal(df):
+        """إضافة مؤشر MACD إذا لزم الأمر"""
+        try:
+            macd_series = ta.macd(df['close'], fast=12, slow=26, signal=9)
+            if macd_series is not None and 'MACD_12_26_9' in macd_series:
+                macd_line = macd_series['MACD_12_26_9'].iloc[-1] if not macd_series['MACD_12_26_9'].empty else 0
+                signal_line = macd_series['MACDs_12_26_9'].iloc[-1] if 'MACDs_12_26_9' in macd_series and not macd_series['MACDs_12_26_9'].empty else 0
+                
+                if macd_line > signal_line:
+                    return 75  # إشارة شراء
+                else:
+                    return 25  # إشارة بيع
+        except:
+            pass
+        return 50
 
 class SignalProcessor:
     """معالجة الإشارات"""
@@ -323,12 +351,14 @@ class NotificationManager:
             if current_signal >= NOTIFICATION_THRESHOLDS['strong_buy']:
                 message = f"🟢 إشارة شراء قوية: {coin_name} ({coin_symbol})"
                 message += f"\n📊 القوة: {current_signal:.1f}%"
+                message += f"\n💰 السعر: ${coin_data.get('current_price', 0):,.2f}"
                 message += f"\n⏰ {datetime.now().strftime('%H:%M')}"
                 notification_type = "strong_buy"
             
             elif current_signal <= NOTIFICATION_THRESHOLDS['strong_sell']:
                 message = f"🔴 إشارة بيع قوية: {coin_name} ({coin_symbol})"
                 message += f"\n📊 القوة: {current_signal:.1f}%"
+                message += f"\n💰 السعر: ${coin_data.get('current_price', 0):,.2f}"
                 message += f"\n⏰ {datetime.now().strftime('%H:%M')}"
                 notification_type = "strong_sell"
             
@@ -338,6 +368,7 @@ class NotificationManager:
                 direction = "ارتفاع" if change > 0 else "انخفاض"
                 message = f"📈 تغير كبير في إشارة {coin_name}"
                 message += f"\n{current_signal:.1f}% ← {prev_signal:.1f}% ({direction})"
+                message += f"\n💰 السعر: ${coin_data.get('current_price', 0):,.2f}"
                 message += f"\n⏰ {datetime.now().strftime('%H:%M')}"
                 notification_type = "significant_change"
             
@@ -412,6 +443,15 @@ def get_indicator_color(indicator_key):
     }
     return colors.get(indicator_key, '#2E86AB')
 
+def format_number(value):
+    """تنسيق الأرقام للعرض"""
+    if value >= 1000000:
+        return f"{value/1000000:.2f}M"
+    elif value >= 1000:
+        return f"{value/1000:.2f}K"
+    else:
+        return f"{value:.2f}"
+
 # ======================
 # الوظائف الرئيسية
 # ======================
@@ -443,7 +483,7 @@ def update_signals():
             
             current_price = fetcher.get_current_price(symbol)
             
-            # حساب المؤشرات
+            # حساب المؤشرات باستخدام pandas_ta
             rsi_score = calculator.calculate_rsi(df)
             volume_score = calculator.calculate_volume_signal(df)
             ma_score = calculator.calculate_moving_averages_signal(df)
@@ -474,8 +514,16 @@ def update_signals():
                 'signal_type': signal_result['signal_type'],
                 'weighted_scores': signal_result['weighted_scores'],
                 'last_updated': datetime.now(),
-                'fear_greed_value': fgi_value
+                'fear_greed_value': fgi_value,
+                'price_change': None
             }
+            
+            # حساب التغير إذا كانت هناك بيانات سابقة
+            if previous_data and 'current_price' in previous_data:
+                prev_price = previous_data['current_price']
+                if prev_price > 0:
+                    price_change = ((current_price - prev_price) / prev_price) * 100
+                    coin_data['price_change'] = price_change
             
             # التحقق من الإشعارات
             NotificationManager.check_and_send_notification(coin_data, previous_data)
@@ -543,6 +591,8 @@ def index():
                 })
             
             coin_info['indicators'] = indicators
+            coin_info['formatted_price'] = format_number(coin_info['current_price'])
+            
             coins_data.append(coin_info)
         else:
             # بيانات افتراضية
@@ -550,12 +600,14 @@ def index():
                 'symbol': coin['symbol'],
                 'name': coin['name'],
                 'current_price': 0,
+                'formatted_price': '0',
                 'total_percentage': 50,
                 'signal_strength': 'غير متوفر',
                 'signal_type': 'محايد',
                 'indicators': [],
                 'last_updated': None,
-                'fear_greed_value': 50
+                'fear_greed_value': 50,
+                'price_change': 0
             })
     
     # ترتيب العملات حسب قوة الإشارة
@@ -564,13 +616,23 @@ def index():
     # بيانات الإشعارات الأخيرة
     recent_notifications = signals_data['notifications'][-5:] if signals_data['notifications'] else []
     
-    # تمرير دالتي الألوان والأسماء للقالب
+    # إحصائيات
+    stats = {
+        'total_coins': len(COINS),
+        'updated_coins': len(signals_data['coins']),
+        'avg_signal': np.mean([c['total_percentage'] for c in coins_data]) if coins_data else 50,
+        'buy_signals': sum(1 for c in coins_data if c.get('signal_type') == 'شراء'),
+        'sell_signals': sum(1 for c in coins_data if c.get('signal_type') == 'بيع')
+    }
+    
     return render_template('index.html',
                          coins=coins_data,
                          last_update=signals_data['last_update'],
                          notifications=recent_notifications,
                          notification_count=len(signals_data['notifications']),
-                         get_indicator_color=get_indicator_color)
+                         stats=stats,
+                         get_indicator_color=get_indicator_color,
+                         format_number=format_number)
 
 @app.route('/api/signals')
 def api_signals():
@@ -589,17 +651,28 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'last_update': signals_data['last_update'].isoformat() if signals_data['last_update'] else None,
-        'coins_available': len(signals_data['coins'])
+        'coins_available': len(signals_data['coins']),
+        'uptime': time.time() - start_time if 'start_time' in globals() else 0
     })
+
+@app.route('/api/notifications')
+def get_notifications():
+    """الحصول على الإشعارات"""
+    return jsonify({'notifications': signals_data['notifications'][-10:]})
 
 # ======================
 # تشغيل التطبيق
 # ======================
 
 if __name__ == '__main__':
+    # حفظ وقت البدء
+    global start_time
+    start_time = time.time()
+    
     # بدء التحديث في الخلفية
     print("🚀 بدء تشغيل Crypto Signal Analyzer...")
     print(f"📊 مراقبة العملات: {[coin['name'] for coin in COINS]}")
+    print(f"📦 استخدام pandas_ta بدلاً من TA-Lib")
     
     # تحديث أولي
     try:
@@ -613,4 +686,5 @@ if __name__ == '__main__':
     
     # تشغيل Flask
     port = int(os.environ.get('PORT', 5000))
+    print(f"🌐 تشغيل الخادم على المنفذ {port}")
     app.run(host='0.0.0.0', port=port, debug=False)

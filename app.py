@@ -1,7 +1,5 @@
 """
-Crypto Signal Analyzer Bot
-Author: Crypto Analyst
-Description: نظام تحليل مؤشرات الكريبتو مع واجهة Flask
+Crypto Signal Analyzer Bot - نسخة محدثة
 """
 
 import os
@@ -14,10 +12,7 @@ import pandas as pd
 import numpy as np
 import ccxt
 import requests
-from ta import add_all_ta_features
-from ta.momentum import RSIIndicator
-from ta.trend import EMAIndicator, MACD
-from ta.volume import VolumeWeightedAveragePrice
+import talib  # استخدام talib بدلاً من ta
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -48,9 +43,9 @@ INDICATOR_WEIGHTS = {
 
 # عتبات الإشعارات
 NOTIFICATION_THRESHOLDS = {
-    'strong_buy': 70,    # > 70% إشارة شراء قوية
-    'strong_sell': 30,   # < 30% إشارة بيع قوية
-    'change_threshold': 15  # تغير 15% لإرسال إشعار
+    'strong_buy': 70,
+    'strong_sell': 30,
+    'change_threshold': 15
 }
 
 # إعدادات Binance API
@@ -114,93 +109,94 @@ class BinanceDataFetcher:
         return ticker['last'] if ticker else 0
 
 class IndicatorsCalculator:
-    """فئة لحساب المؤشرات"""
+    """فئة لحساب المؤشرات باستخدام TA-Lib"""
     
     @staticmethod
     def calculate_rsi(df, period=14):
-        """حساب مؤشر RSI"""
-        rsi_indicator = RSIIndicator(close=df['close'], window=period)
-        rsi = rsi_indicator.rsi().iloc[-1]
-        
-        # تحويل RSI إلى نسبة مئوية للإشارة
-        if rsi <= 30:
-            return 100  # تشبع بيعي قوي
-        elif rsi >= 70:
-            return 0    # تشبع شرائي قوي
-        else:
-            # تحويل خطي بين 30 و 70
-            if rsi > 50:
-                return max(0, 100 - ((rsi - 50) / 20 * 100))
+        """حساب مؤشر RSI باستخدام TA-Lib"""
+        try:
+            rsi = talib.RSI(df['close'].values, timeperiod=period)[-1]
+            
+            # تحويل RSI إلى نسبة مئوية للإشارة
+            if rsi <= 30:
+                return 100  # تشبع بيعي قوي
+            elif rsi >= 70:
+                return 0    # تشبع شرائي قوي
             else:
-                return min(100, ((50 - rsi) / 20 * 100))
+                # تحويل خطي بين 30 و 70
+                if rsi > 50:
+                    return max(0, 100 - ((rsi - 50) / 20 * 100))
+                else:
+                    return min(100, ((50 - rsi) / 20 * 100))
+        except:
+            return 50  # قيمة افتراضية في حالة الخطأ
     
     @staticmethod
     def calculate_volume_signal(df):
         """حساب إشارة الحجم"""
-        current_volume = df['volume'].iloc[-1]
-        avg_volume_20 = df['volume'].tail(20).mean()
-        
-        if current_volume > avg_volume_20 * 1.5:
-            return 100  # حجم قوي جداً
-        elif current_volume > avg_volume_20:
-            return 75   # حجم أعلى من المتوسط
-        elif current_volume < avg_volume_20 * 0.5:
-            return 0    # حجم ضعيف جداً
-        else:
-            return 50   # حجم متوسط
+        try:
+            current_volume = df['volume'].iloc[-1]
+            avg_volume_20 = df['volume'].tail(20).mean()
+            
+            if avg_volume_20 == 0:
+                return 50
+            
+            volume_ratio = current_volume / avg_volume_20
+            
+            if volume_ratio > 1.5:
+                return 100
+            elif volume_ratio > 1.0:
+                return 75
+            elif volume_ratio < 0.5:
+                return 0
+            else:
+                return 50
+        except:
+            return 50
     
     @staticmethod
     def calculate_moving_averages_signal(df):
         """حساب إشارة المتوسطات المتحركة"""
-        # حساب المتوسطات
-        ema_20 = EMAIndicator(close=df['close'], window=20).ema_indicator().iloc[-1]
-        ema_50 = EMAIndicator(close=df['close'], window=50).ema_indicator().iloc[-1]
-        ema_200 = EMAIndicator(close=df['close'], window=200).ema_indicator().iloc[-1]
-        current_price = df['close'].iloc[-1]
-        
-        # تقييم الترتيب
-        score = 0
-        
-        # سعر فوق EMA20
-        if current_price > ema_20:
-            score += 25
-        
-        # سعر فوق EMA50
-        if current_price > ema_50:
-            score += 25
-        
-        # سعر فوق EMA200
-        if current_price > ema_200:
-            score += 25
-        
-        # EMA20 فوق EMA50
-        if ema_20 > ema_50:
-            score += 15
-        
-        # EMA50 فوق EMA200
-        if ema_50 > ema_200:
-            score += 10
-        
-        return min(100, score)
+        try:
+            # حساب المتوسطات باستخدام TA-Lib
+            ema_20 = talib.EMA(df['close'].values, timeperiod=20)[-1]
+            ema_50 = talib.EMA(df['close'].values, timeperiod=50)[-1]
+            ema_200 = talib.EMA(df['close'].values, timeperiod=200)[-1]
+            current_price = df['close'].iloc[-1]
+            
+            # تقييم الترتيب
+            score = 0
+            
+            if pd.notna(ema_20) and current_price > ema_20:
+                score += 25
+            
+            if pd.notna(ema_50) and current_price > ema_50:
+                score += 25
+            
+            if pd.notna(ema_200) and current_price > ema_200:
+                score += 25
+            
+            if pd.notna(ema_20) and pd.notna(ema_50) and ema_20 > ema_50:
+                score += 15
+            
+            if pd.notna(ema_50) and pd.notna(ema_200) and ema_50 > ema_200:
+                score += 10
+            
+            return min(100, score)
+        except Exception as e:
+            print(f"Error in MA calculation: {e}")
+            return 50
     
     @staticmethod
     def calculate_fear_greed_index():
         """حساب مؤشر الخوف والجشع"""
         try:
-            # جلب مؤشر الخوف والجشع من API
             url = "https://api.alternative.me/fng/"
             response = requests.get(url, timeout=10)
             data = response.json()
             
             if 'data' in data and len(data['data']) > 0:
                 fgi_value = int(data['data'][0]['value'])
-                
-                # تحويل إلى إشارة (0-100%)
-                # 0-25: خوف شديد (شراء) -> 100%
-                # 26-45: خوف -> 75%
-                # 46-55: محايد -> 50%
-                # 56-75: جشع -> 25%
-                # 76-100: جشع شديد (بيع) -> 0%
                 
                 if fgi_value <= 25:
                     return 100, fgi_value
@@ -213,27 +209,37 @@ class IndicatorsCalculator:
                 else:
                     return 0, fgi_value
             else:
-                return 50, 50  # قيمة افتراضية
+                return 50, 50
         except:
-            return 50, 50  # قيمة افتراضية في حالة الخطأ
+            return 50, 50
     
     @staticmethod
-    def calculate_nvt_signal(df, network_value):
+    def calculate_nvt_signal(df, current_price):
         """حساب إشارة NVT (مبسطة)"""
         try:
             # متوسط الحجم اليومي (بالدولار)
-            avg_daily_volume = df['volume'].tail(24).mean() * df['close'].iloc[-1]
+            avg_daily_volume = df['volume'].tail(24).mean() * current_price
             
             if avg_daily_volume == 0:
                 return 50
             
-            # نسبة NVT مبسطة
-            nvt_ratio = network_value / avg_daily_volume
+            # استخدام القيمة السوقية التقريبية (مبسطة)
+            # يمكن تعديل هذه القيمة حسب العملة
+            if "BTC" in df.index.name or "BTC" in str(df.columns):
+                market_cap = current_price * 19_000_000  # تقدير تقريبي
+            elif "ETH" in df.index.name or "ETH" in str(df.columns):
+                market_cap = current_price * 120_000_000
+            elif "BNB" in df.index.name or "BNB" in str(df.columns):
+                market_cap = current_price * 150_000_000
+            elif "SOL" in df.index.name or "SOL" in str(df.columns):
+                market_cap = current_price * 400_000_000
+            else:
+                market_cap = current_price * 1_000_000
             
-            # تحويل النسبة إلى إشارة
-            # NVT منخفض = إيجابي، NVT مرتفع = سلبي
+            nvt_ratio = market_cap / avg_daily_volume
+            
             if nvt_ratio < 20:
-                return 100  # NVT منخفض جداً (إيجابي)
+                return 100
             elif nvt_ratio < 40:
                 return 75
             elif nvt_ratio < 60:
@@ -241,7 +247,7 @@ class IndicatorsCalculator:
             elif nvt_ratio < 80:
                 return 25
             else:
-                return 0    # NVT مرتفع جداً (سلبي)
+                return 0
         except:
             return 50
 
@@ -276,7 +282,6 @@ class SignalProcessor:
     
     @staticmethod
     def get_signal_strength(percentage):
-        """تحديد قوة الإشارة"""
         if percentage >= 80:
             return "قوية جداً"
         elif percentage >= 60:
@@ -290,7 +295,6 @@ class SignalProcessor:
     
     @staticmethod
     def get_signal_type(percentage):
-        """تحديد نوع الإشارة"""
         if percentage > 60:
             return "شراء"
         elif percentage < 40:
@@ -309,12 +313,10 @@ class NotificationManager:
             coin_symbol = coin_data['symbol']
             coin_name = coin_data['name']
             
-            # البحث عن الإشارة السابقة
             prev_signal = None
             if previous_data:
                 prev_signal = previous_data.get('total_percentage', None)
             
-            # إشعارات قوة الإشارة
             message = None
             notification_type = None
             
@@ -330,7 +332,6 @@ class NotificationManager:
                 message += f"\n⏰ {datetime.now().strftime('%H:%M')}"
                 notification_type = "strong_sell"
             
-            # إشعار تغير كبير في الإشارة
             elif (prev_signal and 
                   abs(current_signal - prev_signal) >= NOTIFICATION_THRESHOLDS['change_threshold']):
                 change = current_signal - prev_signal
@@ -340,12 +341,10 @@ class NotificationManager:
                 message += f"\n⏰ {datetime.now().strftime('%H:%M')}"
                 notification_type = "significant_change"
             
-            # إرسال الإشعار إذا كان هناك رسالة
             if message:
                 success = NotificationManager.send_ntfy_notification(message)
                 
                 if success:
-                    # حفظ الإشعار محلياً
                     notification = {
                         'timestamp': datetime.now(),
                         'coin': coin_name,
@@ -356,7 +355,6 @@ class NotificationManager:
                     
                     signals_data['notifications'].append(notification)
                     
-                    # الحفاظ على آخر 20 إشعار فقط
                     if len(signals_data['notifications']) > 20:
                         signals_data['notifications'] = signals_data['notifications'][-20:]
                     
@@ -380,12 +378,39 @@ class NotificationManager:
             response = requests.post(
                 NTFY_URL,
                 data=message.encode('utf-8'),
-                headers=headers
+                headers=headers,
+                timeout=10
             )
             
             return response.status_code == 200
         except:
             return False
+
+# ======================
+# الوظائف المساعدة
+# ======================
+
+def get_indicator_display_name(indicator_key):
+    """تحويل اسم المؤشر للعرض"""
+    names = {
+        'fear_greed': 'مؤشر الخوف والجشع',
+        'rsi': 'مؤشر RSI',
+        'volume': 'الحجم التداولي',
+        'moving_averages': 'المتوسطات المتحركة',
+        'nvt': 'مؤشر NVT'
+    }
+    return names.get(indicator_key, indicator_key)
+
+def get_indicator_color(indicator_key):
+    """الحصول على لون المؤشر"""
+    colors = {
+        'fear_greed': '#2E86AB',
+        'rsi': '#A23B72',
+        'volume': '#3BB273',
+        'moving_averages': '#F18F01',
+        'nvt': '#6C757D'
+    }
+    return colors.get(indicator_key, '#2E86AB')
 
 # ======================
 # الوظائف الرئيسية
@@ -400,7 +425,7 @@ def update_signals():
     fetcher = BinanceDataFetcher()
     calculator = IndicatorsCalculator()
     
-    # جلب مؤشر الخوف والجشع (مرة واحدة لجميع العملات)
+    # جلب مؤشر الخوف والجشع
     fear_greed_score, fgi_value = calculator.calculate_fear_greed_index()
     
     for coin in COINS:
@@ -411,21 +436,18 @@ def update_signals():
             print(f"  جلب بيانات {name}...")
             
             # جلب البيانات
-            df = fetcher.get_ohlcv(symbol, timeframe='1h', limit=500)
+            df = fetcher.get_ohlcv(symbol, timeframe='1h', limit=200)
             if df is None or df.empty:
+                print(f"  فشل جلب بيانات {name}")
                 continue
             
             current_price = fetcher.get_current_price(symbol)
             
-            # حساب المؤشرات الفردية
+            # حساب المؤشرات
             rsi_score = calculator.calculate_rsi(df)
             volume_score = calculator.calculate_volume_signal(df)
             ma_score = calculator.calculate_moving_averages_signal(df)
-            
-            # تقدير قيمة الشبكة (مبسط)
-            network_value = current_price * 1_000_000  # تقدير مبسط
-            
-            nvt_score = calculator.calculate_nvt_signal(df, network_value)
+            nvt_score = calculator.calculate_nvt_signal(df, current_price)
             
             # جمع درجات المؤشرات
             indicator_scores = {
@@ -446,7 +468,6 @@ def update_signals():
                 'symbol': symbol,
                 'name': name,
                 'current_price': current_price,
-                'price_change': 0,  # يمكن إضافة حساب التغير
                 'indicator_scores': indicator_scores,
                 'total_percentage': signal_result['total_percentage'],
                 'signal_strength': signal_result['signal_strength'],
@@ -462,6 +483,8 @@ def update_signals():
             # حفظ البيانات
             signals_data['coins'][symbol] = coin_data
             
+            print(f"  {name}: {signal_result['total_percentage']:.1f}% ({signal_result['signal_type']})")
+            
         except Exception as e:
             print(f"Error processing {coin['name']}: {e}")
             continue
@@ -476,17 +499,21 @@ def update_signals():
     }
     signals_data['history'].append(history_entry)
     
-    # الحفاظ على آخر 100 سجل
-    if len(signals_data['history']) > 100:
-        signals_data['history'] = signals_data['history'][-100:]
+    # الحفاظ على آخر 50 سجل
+    if len(signals_data['history']) > 50:
+        signals_data['history'] = signals_data['history'][-50:]
     
     print(f"[{datetime.now()}] تم تحديث الإشارات بنجاح")
 
 def background_updater():
     """تحديث البيانات في الخلفية"""
     while True:
-        update_signals()
-        time.sleep(300)  # 5 دقائق
+        try:
+            update_signals()
+            time.sleep(300)  # 5 دقائق
+        except Exception as e:
+            print(f"Error in background updater: {e}")
+            time.sleep(60)  # انتظار دقيقة ثم إعادة المحاولة
 
 # ======================
 # Routes Flask
@@ -527,7 +554,8 @@ def index():
                 'signal_strength': 'غير متوفر',
                 'signal_type': 'محايد',
                 'indicators': [],
-                'last_updated': None
+                'last_updated': None,
+                'fear_greed_value': 50
             })
     
     # ترتيب العملات حسب قوة الإشارة
@@ -536,11 +564,13 @@ def index():
     # بيانات الإشعارات الأخيرة
     recent_notifications = signals_data['notifications'][-5:] if signals_data['notifications'] else []
     
+    # تمرير دالتي الألوان والأسماء للقالب
     return render_template('index.html',
                          coins=coins_data,
                          last_update=signals_data['last_update'],
                          notifications=recent_notifications,
-                         notification_count=len(signals_data['notifications']))
+                         notification_count=len(signals_data['notifications']),
+                         get_indicator_color=get_indicator_color)
 
 @app.route('/api/signals')
 def api_signals():
@@ -553,30 +583,14 @@ def manual_update():
     update_signals()
     return jsonify({'status': 'success', 'message': 'تم التحديث بنجاح'})
 
-@app.route('/api/history/<symbol>')
-def get_history(symbol):
-    """الحصول على السجل التاريخي"""
-    history_data = []
-    
-    for entry in signals_data['history']:
-        if symbol in entry['signals']:
-            history_data.append({
-                'timestamp': entry['timestamp'].isoformat(),
-                'signal': entry['signals'][symbol]
-            })
-    
-    return jsonify(history_data)
-
-def get_indicator_display_name(indicator_key):
-    """تحويل اسم المؤشر للعرض"""
-    names = {
-        'fear_greed': 'مؤشر الخوف والجشع',
-        'rsi': 'مؤشر RSI',
-        'volume': 'الحجم التداولي',
-        'moving_averages': 'المتوسطات المتحركة',
-        'nvt': 'مؤشر NVT'
-    }
-    return names.get(indicator_key, indicator_key)
+@app.route('/api/health')
+def health_check():
+    """فحص صحة التطبيق"""
+    return jsonify({
+        'status': 'healthy',
+        'last_update': signals_data['last_update'].isoformat() if signals_data['last_update'] else None,
+        'coins_available': len(signals_data['coins'])
+    })
 
 # ======================
 # تشغيل التطبيق
@@ -585,9 +599,13 @@ def get_indicator_display_name(indicator_key):
 if __name__ == '__main__':
     # بدء التحديث في الخلفية
     print("🚀 بدء تشغيل Crypto Signal Analyzer...")
+    print(f"📊 مراقبة العملات: {[coin['name'] for coin in COINS]}")
     
     # تحديث أولي
-    update_signals()
+    try:
+        update_signals()
+    except Exception as e:
+        print(f"Error in initial update: {e}")
     
     # بدء خيط التحديث التلقائي
     updater_thread = threading.Thread(target=background_updater, daemon=True)

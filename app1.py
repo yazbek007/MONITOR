@@ -1275,35 +1275,57 @@ class NotificationManager:
         # ✅ اختبار الاتصال عند الإنشاء
         self.test_ntfy_connection()
     
-    def test_ntfy_connection(self):
+   def test_ntfy_connection(self):
         """اختبار اتصال NTFY عند بدء التشغيل"""
         try:
-            test_message = "🔔 اختبار اتصال NTFY من Crypto Bot"
+            # استخدام نص إنجليزي فقط للاختبار
+            test_message = "NTFY Connection Test - Crypto Bot is working!"
             headers = {
-                "Title": "اختبار الاتصال",
+                "Title": "Connection Test",
                 "Priority": "low",
                 "Tags": "green_circle"
             }
-            
-            logger.info(f"🔍 اختبار اتصال NTFY إلى: {ExternalAPIConfig.NTFY_URL}")
-            
+        
+            logger.info(f"🔍 Testing NTFY connection to: {ExternalAPIConfig.NTFY_URL}")
+        
             response = requests.post(
                 ExternalAPIConfig.NTFY_URL,
                 data=test_message.encode('utf-8'),
                 headers=headers,
                 timeout=10
             )
-            
+        
             if response.status_code == 200:
-                logger.info("✅ اتصال NTFY يعمل بنجاح!")
+                logger.info("✅ NTFY connection successful!")
+            
+                # اختبار ثان مع نص عربي
+                arabic_test = self._send_simple_arabic_test()
+                if arabic_test:
+                    logger.info("✅ Arabic text encoding works!")
+                else:
+                    logger.warning("⚠️ Arabic text might have encoding issues")
+                
                 return True
             else:
-                logger.warning(f"⚠️ استجابة NTFY غير متوقعة: {response.status_code}")
-                logger.warning(f"⚠️ نص الاستجابة: {response.text[:100]}")
+                logger.warning(f"⚠️ Unexpected NTFY response: {response.status_code}")
                 return False
-                
+            
         except Exception as e:
-            logger.error(f"❌ فشل اتصال NTFY: {e}")
+            logger.error(f"❌ Failed to connect to NTFY: {e}")
+            return False
+
+    def _send_simple_arabic_test(self):
+        """اختبار بسيط للنصوص العربية"""
+        try:
+            test_msg = "اختبار النصوص العربية"
+            response = requests.post(
+                ExternalAPIConfig.NTFY_URL,
+                data=test_msg.encode('utf-8'),
+                headers={"Title": "Test"},
+                timeout=5
+            )
+            return response.status_code == 200
+        except:
             return False
         
     def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
@@ -1503,26 +1525,52 @@ class NotificationManager:
             return False
     
     def _create_buy_message(self, coin_signal: CoinSignal, strength: str) -> str:
-        """إنشاء رسالة شراء"""
-        return (f"🚀 إشارة شراء {strength}: {coin_signal.name} ({coin_signal.symbol})\n"
-                f"📊 القوة: {coin_signal.total_percentage:.1f}%\n"
-                f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
-                f"📈 التغير 24h: {coin_signal.price_change_24h:+.2f}%\n"
-                f"📊 الخوف والجشع: {coin_signal.fear_greed_value}\n"
-                f"⏰ {datetime.now().strftime('%H:%M')}")
+        """إنشاء رسالة شراء مع نص مختلط آمن"""
+        coin_name = coin_signal.name
+        symbol = coin_signal.symbol
     
+        # استخدام إيموجيات مع نص إنجليزي
+        if strength == "قوية":
+            strength_emoji = "🚀"
+            strength_text = "STRONG"
+        else:
+            strength_emoji = "📈"
+            strength_text = "REGULAR"
+    
+        return (
+            f"{strength_emoji} {strength_text} BUY: {coin_name} ({symbol})\n"
+            f"📊 Strength: {coin_signal.total_percentage:.1f}%\n"
+            f"💰 Price: ${coin_signal.current_price:,.2f}\n"
+            f"📈 24h Change: {coin_signal.price_change_24h:+.2f}%\n"
+            f"📊 Fear/Greed: {coin_signal.fear_greed_value}\n"
+            f"⏰ {datetime.now().strftime('%H:%M')}"
+        )
+
     def _create_sell_message(self, coin_signal: CoinSignal, strength: str) -> str:
-        """إنشاء رسالة بيع"""
-        return (f"⚠️ إشارة بيع {strength}: {coin_signal.name} ({coin_signal.symbol})\n"
-                f"📊 القوة: {coin_signal.total_percentage:.1f}%\n"
-                f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
-                f"📈 التغير 24h: {coin_signal.price_change_24h:+.2f}%\n"
-                f"📊 الخوف والجشع: {coin_signal.fear_greed_value}\n"
-                f"⏰ {datetime.now().strftime('%H:%M')}")
+        """إنشاء رسالة بيع مع نص مختلط آمن"""
+        coin_name = coin_signal.name
+        symbol = coin_signal.symbol
+    
+        if strength == "قوية":
+            strength_emoji = "⚠️"
+            strength_text = "STRONG"
+        else:
+            strength_emoji = "📉"
+            strength_text = "REGULAR"
+    
+        return (
+            f"{strength_emoji} {strength_text} SELL: {coin_name} ({symbol})\n"
+            f"📊 Strength: {coin_signal.total_percentage:.1f}%\n"
+            f"💰 Price: ${coin_signal.current_price:,.2f}\n"
+            f"📈 24h Change: {coin_signal.price_change_24h:+.2f}%\n"
+            f"📊 Fear/Greed: {coin_signal.fear_greed_value}\n"
+            f"⏰ {datetime.now().strftime('%H:%M')}"
+        )strftime('%H:%M')}")
     
     def send_ntfy_notification(self, message: str, notification_type: str, priority: str) -> bool:
-        """إرسال إشعار عبر NTFY مع تسجيل مفصل"""
+        """إرسال إشعار عبر NTFY مع معالجة الترميز"""
         try:
+            # استخدم إيموجيات فقط في Tags (لا نصوص عربية)
             tags = {
                 'strong_buy': 'heavy_plus_sign,green_circle',
                 'buy': 'chart_increasing,blue_circle',
@@ -1533,46 +1581,108 @@ class NotificationManager:
                 'test': 'test_tube,white_circle'
             }
         
-            headers = {
-                "Title": "📊 إشعار إشارة التشفير",
-                "Priority": priority,
-                "Tags": tags.get(notification_type, 'loudspeaker')
+            # استخدم عنوان إنجليزي فقط لتجنب مشاكل الترميز
+            title_map = {
+                'strong_buy': '🚀 Strong Buy Signal',
+                'buy': '📈 Buy Signal',
+                'strong_sell': '⚠️ Strong Sell Signal',
+                'sell': '📉 Sell Signal',
+                'significant_change': '🔄 Significant Change',
+                'heartbeat': '❤️ System Heartbeat',
+                'test': '🧪 Test Notification'
             }
         
-            # ✅ تسجيل التفاصيل قبل الإرسال
-            logger.info("=" * 50)
-            logger.info(f"📤 محاولة إرسال إشعار:")
-            logger.info(f"   النوع: {notification_type}")
-            logger.info(f"   الأولوية: {priority}")
-            logger.info(f"   الرابط: {ExternalAPIConfig.NTFY_URL}")
-            logger.info(f"   الرسالة: {message[:100]}...")
-            logger.info("=" * 50)
+            headers = {
+                "Title": title_map.get(notification_type, "📊 Crypto Signal"),
+                "Priority": priority,
+                "Tags": tags.get(notification_type, 'loudspeaker'),
+                "Content-Type": "text/plain; charset=utf-8"  # ← أضف هذا!
+            }
+        
+            logger.info(f"📤 Sending {notification_type} notification")
+            logger.info(f"   URL: {ExternalAPIConfig.NTFY_URL}")
+            logger.info(f"   Message length: {len(message)} chars")
+        
+            # تأكد من ترميز UTF-8
+            encoded_message = message.encode('utf-8')
         
             response = requests.post(
                 ExternalAPIConfig.NTFY_URL,
-                data=message.encode('utf-8'),
+                data=encoded_message,
+                headers=headers,
+                timeout=15
+            )
+        
+            logger.info(f"📥 NTFY Response: {response.status_code}")
+        
+            if response.status_code == 200:
+                logger.info("✅ Notification sent successfully")
+                return True
+            else:
+                logger.error(f"❌ Failed to send: {response.status_code} - {response.text[:100]}")
+                return False
+            
+        except requests.exceptions.Timeout:
+            logger.error("⏰ NTFY timeout (15 seconds)")
+            return False
+        except requests.exceptions.ConnectionError:
+            logger.error("🔌 Connection error - check internet")
+            return False
+        except UnicodeEncodeError as e:
+            logger.error(f"❌ Encoding error: {e}")
+            logger.error("Trying with ASCII fallback...")
+        
+            # محاولة ثانية بنص مبسط
+            return self._send_with_ascii_fallback(message, notification_type, priority)
+        except Exception as e:
+            logger.error(f"❌ Unexpected error: {e}")
+            return False
+
+    def _send_with_ascii_fallback(self, original_message: str, notification_type: str, priority: str) -> bool:
+        """إرسال بإسقاط النصوص العربية إذا فشل الترميز"""
+        try:
+            # تحويل الرسالة إلى نص ASCII آمن
+            safe_message = original_message
+        
+            # استبدال النصوص العربية بنصوص إنجليزية مع إيموجيات
+            replacements = {
+                "شراء قوي": "🚀 STRONG BUY",
+                "شراء": "📈 BUY",
+                "بيع قوي": "⚠️ STRONG SELL",
+                "بيع": "📉 SELL",
+                "محايد": "⚪ NEUTRAL",
+                "التغير": "Change",
+                "السعر": "Price",
+                "القوة": "Strength",
+                "الخوف والجشع": "Fear/Greed",
+                "إشارة": "Signal",
+                "تغير كبير": "🔄 BIG CHANGE"
+            }
+        
+            for arabic, english in replacements.items():
+                safe_message = safe_message.replace(arabic, english)
+        
+            # إزالة أي أحرف غير ASCII متبقية
+            safe_message = ''.join(char if ord(char) < 128 else '?' for char in safe_message)
+        
+            headers = {
+                "Title": "Crypto Signal",
+                "Priority": priority,
+                "Tags": "warning",
+                "Content-Type": "text/plain; charset=ascii"
+            }
+        
+            response = requests.post(
+                ExternalAPIConfig.NTFY_URL,
+                data=safe_message.encode('ascii', 'ignore'),
                 headers=headers,
                 timeout=10
             )
         
-            # ✅ تسجيل النتيجة
-            logger.info(f"📥 استجابة NTFY:")
-            logger.info(f"   الحالة: {response.status_code}")
-            if response.status_code != 200:
-                logger.error(f"   ❌ خطأ: {response.text[:200]}")
-            else:
-                logger.info("   ✅ تم الإرسال بنجاح")
-        
             return response.status_code == 200
         
-        except requests.exceptions.Timeout:
-            logger.error("⏰ تجاوز وقت انتظار NTFY (10 ثواني)")
-            return False
-        except requests.exceptions.ConnectionError:
-            logger.error("🔌 خطأ اتصال بـ NTFY - تحقق من الإنترنت")
-            return False
         except Exception as e:
-            logger.error(f"❌ خطأ غير متوقع في إرسال NTFY: {e}", exc_info=True)
+            logger.error(f"❌ Fallback also failed: {e}")
             return False
     
     def add_notification(self, notification: Notification):

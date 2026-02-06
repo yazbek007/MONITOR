@@ -726,8 +726,8 @@
                             <div class="price-info">
                                 <p>${{ coin.formatted_price }}</p>
                                 {% if coin.formatted_24h_change %}
-                                <span class="price-change {{ 'positive' if coin.24h_change > 0 else 'negative' }}">
-                                    <i class="fas fa-{{ 'arrow-up' if coin.24h_change > 0 else 'arrow-down' }}"></i>
+                                <span class="price-change {{ 'positive' if coin['24h_change'] > 0 else 'negative' }}">
+                                    <i class="fas fa-{{ 'arrow-up' if coin['24h_change'] > 0 else 'arrow-down' }}"></i>
                                     {{ coin.formatted_24h_change }}
                                 </span>
                                 {% endif %}

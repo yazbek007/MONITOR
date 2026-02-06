@@ -133,7 +133,10 @@ class AppConfig:
     COINS = [
         CoinConfig(symbol="BTC/USDT", name="Bitcoin", base_asset="BTC", quote_asset="USDT"),
         CoinConfig(symbol="ETH/USDT", name="Ethereum", base_asset="ETH", quote_asset="USDT"),
-        CoinConfig(symbol="BNB/USDT", name="Binance Coin", base_asset="BNB", quote_asset="USDT")
+        CoinConfig(symbol="BNB/USDT", name="Binance Coin", base_asset="BNB", quote_asset="USDT"),
+        CoinConfig(symbol="SOL/USDT", name="Solana", base_asset="SOL", quote_asset="USDT"),
+        CoinConfig(symbol="ADA/USDT", name="Cardano", base_asset="ADA", quote_asset="USDT"),
+        CoinConfig(symbol="XRP/USDT", name="Ripple", base_asset="XRP", quote_asset="USDT")
     ]
     
     # أوزان المؤشرات المحسنة

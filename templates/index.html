@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Crypto Signal Analyzer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2E86AB;
+            --secondary: #A23B72;
+            --success: #3BB273;
+            --warning: #F18F01;
+            --danger: #C73E1D;
+            --dark: #1A1A2E;
+            --light: #F8F9FA;
+            --gray: #6C757D;
+            --card-bg: #ffffff;
+            --body-bg: #f5f7fb;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        body {
+            background-color: var(--body-bg);
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 25px 0;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo i {
+            font-size: 2.5rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
+        
+        .update-btn {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .update-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .coin-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .coin-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .coin-name h3 {
+            font-size: 1.3rem;
+            color: var(--dark);
+        }
+        
+        .coin-name p {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+        
+        .signal-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .signal-buy {
+            background: rgba(59, 178, 115, 0.1);
+            color: var(--success);
+        }
+        
+        .signal-sell {
+            background: rgba(199, 62, 29, 0.1);
+            color: var(--danger);
+        }
+        
+        .signal-neutral {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--gray);
+        }
+        
+        .signal-strength {
+            margin: 20px 0;
+        }
+        
+        .strength-bar {
+            height: 25px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        
+        .strength-fill {
+            height: 100%;
+            border-radius: 12px;
+            transition: width 1s ease;
+        }
+        
+        .fill-buy {
+            background: linear-gradient(90deg, var(--success), #7dd9a1);
+        }
+        
+        .fill-sell {
+            background: linear-gradient(90deg, var(--danger), #e0664d);
+        }
+        
+        .fill-neutral {
+            background: linear-gradient(90deg, var(--gray), #8a959e);
+        }
+        
+        .strength-text {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+        }
+        
+        .strength-value {
+            font-size: 1.8rem;
+            color: var(--dark);
+        }
+        
+        .indicators-list {
+            margin-top: 25px;
+        }
+        
+        .indicator-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .indicator-item:last-child {
+            border-bottom: none;
+        }
+        
+        .indicator-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .indicator-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .indicator-value {
+            font-weight: 600;
+            color: var(--dark);
+        }
+        
+        .indicator-bar {
+            width: 100px;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 10px;
+        }
+        
+        .indicator-fill {
+            height: 100%;
+            border-radius: 4px;
+        }
+        
+        .dashboard-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.4rem;
+            color: var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+            display: inline-block;
+        }
+        
+        .notifications-list {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .notification-item {
+            padding: 15px;
+            border-left: 4px solid var(--primary);
+            background: #f8f9fa;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .notification-item.buy {
+            border-left-color: var(--success);
+        }
+        
+        .notification-item.sell {
+            border-left-color: var(--danger);
+        }
+        
+        .notification-time {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-top: 40px;
+            border-top: 1px solid #eaeaea;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: var(--gray);
+        }
+        
+        .last-update {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <h1>🚀 Crypto Signal Analyzer</h1>
+                </div>
+                <div class="status">
+                    <i class="fas fa-sync-alt"></i>
+                    <span id="last-update-text">
+                        {% if last_update %}
+                            آخر تحديث: {{ last_update.strftime('%H:%M') }}
+                        {% else %}
+                            جاري التحميل...
+                        {% endif %}
+                    </span>
+                </div>
+                <button class="update-btn" onclick="manualUpdate()">
+                    <i class="fas fa-redo"></i> تحديث الآن
+                </button>
+            </div>
+        </header>
+        
+        <!-- Last Update Info -->
+        <div class="last-update">
+            <div>
+                <i class="fas fa-info-circle" style="color: var(--primary);"></i>
+                <span style="margin-right: 10px;">آخر تحديث للبيانات</span>
+            </div>
+            <div id="update-timer" style="font-weight: 600;">
+                جاري التحديث...
+            </div>
+        </div>
+        
+        <!-- Coins Cards -->
+        <div class="cards-grid" id="coins-container">
+            {% for coin in coins %}
+            <div class="card">
+                <div class="card-header">
+                    <div class="coin-info">
+                        <div class="coin-icon">
+                            {{ coin.symbol[:3] }}
+                        </div>
+                        <div class="coin-name">
+                            <h3>{{ coin.name }}</h3>
+                            <p>${{ "%.2f"|format(coin.current_price) if coin.current_price > 0 else "غير متوفر" }}</p>
+                        </div>
+                    </div>
+                    <div class="signal-badge {{ 'signal-buy' if coin.signal_type == 'شراء' else 'signal-sell' if coin.signal_type == 'بيع' else 'signal-neutral' }}">
+                        {{ coin.signal_type }}
+                    </div>
+                </div>
+                
+                <div class="signal-strength">
+                    <div class="strength-bar">
+                        <div class="strength-fill {{ 'fill-buy' if coin.signal_type == 'شراء' else 'fill-sell' if coin.signal_type == 'بيع' else 'fill-neutral' }}" 
+                             id="strength-{{ coin.symbol }}" 
+                             style="width: {{ coin.total_percentage if coin.total_percentage else 0 }}%;">
+                        </div>
+                    </div>
+                    <div class="strength-text">
+                        <span>قوة الإشارة</span>
+                        <span class="strength-value">{{ "%.1f"|format(coin.total_percentage) if coin.total_percentage else 0 }}%</span>
+                    </div>
+                    <div style="text-align: center; margin-top: 5px; color: var(--gray); font-size: 0.9rem;">
+                        {{ coin.signal_strength }}
+                    </div>
+                </div>
+                
+                <div class="indicators-list">
+                    <h4 style="margin-bottom: 15px; color: var(--dark);">تفصيل المؤشرات:</h4>
+                    {% for indicator in coin.indicators %}
+                    <div class="indicator-item">
+                        <div class="indicator-name">
+                            <div class="indicator-dot" style="background-color: {{ get_indicator_color(indicator.name) }};"></div>
+                            <span>{{ indicator.display_name }}</span>
+                        </div>
+                        <div style="display: flex; align-items: center;">
+                            <div class="indicator-bar">
+                                <div class="indicator-fill" style="width: {{ indicator.raw_score }}%; background-color: {{ get_indicator_color(indicator.name) }};"></div>
+                            </div>
+                            <div class="indicator-value">{{ "%.1f"|format(indicator.weighted_score) }}%</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div style="margin-top: 20px; font-size: 0.85rem; color: var(--gray); text-align: center;">
+                    <i class="far fa-clock"></i>
+                    {% if coin.last_updated %}
+                        {{ coin.last_updated.strftime('%H:%M:%S') }}
+                    {% else %}
+                        غير متوفر
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Charts and Notifications -->
+        <div class="dashboard-section">
+            <h2 class="section-title"><i class="fas fa-bell"></i> الإشعارات الأخيرة ({{ notification_count }})</h2>
+            <div class="notifications-list">
+                {% if notifications %}
+                    {% for notification in notifications|reverse %}
+                    <div class="notification-item {{ 'buy' if 'شراء' in notification.message else 'sell' if 'بيع' in notification.message }}">
+                        <div>
+                            <i class="fas fa-bell" style="color: {{ '#3BB273' if 'شراء' in notification.message else '#C73E1D' if 'بيع' in notification.message else '#2E86AB' }};"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            {{ notification.message }}
+                            <div class="notification-time">
+                                {{ notification.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="text-align: center; padding: 30px; color: var(--gray);">
+                        <i class="far fa-bell-slash" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                        <p>لا توجد إشعارات حالياً</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Signal History Chart -->
+        <div class="dashboard-section">
+            <h2 class="section-title"><i class="fas fa-chart-bar"></i> تطور الإشارات</h2>
+            <div class="chart-container">
+                <canvas id="signalChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer>
+            <p>🚀 Crypto Signal Analyzer | يتم التحديث تلقائياً كل 5 دقائق</p>
+            <p style="margin-top: 10px; font-size: 0.8rem;">
+                <i class="fas fa-exclamation-triangle"></i>
+                هذا التطبيق لأغراض تعليمية وتحليلية فقط وليس نصيحة استثمارية
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        // دالة للحصول على ألوان المؤشرات
+        function getIndicatorColor(indicatorKey) {
+            const colors = {
+                'fear_greed': '#2E86AB',
+                'rsi': '#A23B72',
+                'volume': '#3BB273',
+                'moving_averages': '#F18F01',
+                'nvt': '#6C757D'
+            };
+            return colors[indicatorKey] || '#2E86AB';
+        }
+        
+        // تطبيق الألوان على المؤشرات
+        document.querySelectorAll('.indicator-dot').forEach(dot => {
+            const indicatorName = dot.nextElementSibling.textContent.trim();
+            let color = '#2E86AB';
+            
+            if (indicatorName.includes('الخوف')) color = '#2E86AB';
+            else if (indicatorName.includes('RSI')) color = '#A23B72';
+            else if (indicatorName.includes('الحجم')) color = '#3BB273';
+            else if (indicatorName.includes('المتوسطات')) color = '#F18F01';
+            else if (indicatorName.includes('NVT')) color = '#6C757D';
+            
+            dot.style.backgroundColor = color;
+        });
+        
+        // تحديث يدوي
+        async function manualUpdate() {
+            const btn = document.querySelector('.update-btn');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    // إعادة تحميل الصفحة بعد 2 ثانية
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                    
+                    // عرض رسالة نجاح
+                    showNotification('تم تحديث البيانات بنجاح', 'success');
+                }
+            } catch (error) {
+                showNotification('خطأ في التحديث', 'error');
+                console.error('Update error:', error);
+            } finally {
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            }
+        }
+        
+        // عرض الإشعارات
+        function showNotification(message, type) {
+            // يمكن إضافة مكتبة للإشعارات هنا
+            alert(message);
+        }
+        
+        // تحديث المؤقت
+        function updateTimer() {
+            const timerElement = document.getElementById('update-timer');
+            if (!timerElement) return;
+            
+            let seconds = 300; // 5 دقائق
+            
+            // بدء المؤقت
+            const interval = setInterval(() => {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                
+                timerElement.textContent = `التحديث التالي خلال: ${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+                
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    timerElement.textContent = 'جاري التحديث...';
+                    // تحديث تلقائي بعد انتهاء الوقت
+                    setTimeout(() => {
+                        location.reload();
+                    }, 2000);
+                }
+                
+                seconds--;
+            }, 1000);
+        }
+        
+        // تهيئة الرسم البياني
+        function initChart() {
+            const ctx = document.getElementById('signalChart').getContext('2d');
+            
+            // بيانات تجريبية
+            const labels = [];
+            const datasets = [];
+            
+            {% for coin in coins %}
+            datasets.push({
+                label: '{{ coin.name }}',
+                data: [{% for i in range(10) %}{{ coin.total_percentage + (random(-5, 5)) }}{% if not loop.last %},{% endif %}{% endfor %}],
+                borderColor: getIndicatorColor('{{ coin.symbol }}'),
+                backgroundColor: getIndicatorColor('{{ coin.symbol }}') + '20',
+                tension: 0.3,
+                fill: false
+            });
+            {% endfor %}
+            
+            // إنشاء الرسم البياني
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 10}, (_, i) => `${i * 10}د`),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            rtl: true
+                        },
+                        tooltip: {
+                            rtl: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'قوة الإشارة (%)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'الوقت'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // تحديث بيانات الصفحة بدون إعادة تحميل
+        async function refreshData() {
+            try {
+                const response = await fetch('/api/signals');
+                const data = await response.json();
+                
+                // تحديث بيانات كل عملة
+                for (const [symbol, coinData] of Object.entries(data)) {
+                    const card = document.querySelector(`#strength-${symbol}`).closest('.card');
+                    if (card) {
+                        const strengthFill = card.querySelector('.strength-fill');
+                        const strengthValue = card.querySelector('.strength-value');
+                        const signalBadge = card.querySelector('.signal-badge');
+                        const signalText = card.querySelector('.signal-badge').textContent;
+                        
+                        // تحديث القيم
+                        if (strengthFill) {
+                            strengthFill.style.width = `${coinData.total_percentage || 0}%`;
+                        }
+                        if (strengthValue) {
+                            strengthValue.textContent = `${(coinData.total_percentage || 0).toFixed(1)}%`;
+                        }
+                    }
+                }
+                
+                // تحديث وقت التحديث الأخير
+                const lastUpdateElement = document.getElementById('last-update-text');
+                if (lastUpdateElement) {
+                    const now = new Date();
+                    lastUpdateElement.textContent = `آخر تحديث: ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                }
+                
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+            }
+        }
+        
+        // عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTimer();
+            
+            // تحديث البيانات كل 30 ثانية
+            setInterval(refreshData, 30000);
+            
+            // تهيئة الرسم البياني
+            setTimeout(initChart, 1000);
+            
+            // إضافة تأثيرات للشرائط
+            document.querySelectorAll('.strength-fill').forEach(fill => {
+                const width = fill.style.width;
+                fill.style.width = '0%';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 300);
+            });
+        });
+        
+        // دالة لإنشاء أرقام عشوائية (للرسم البياني)
+        Math.random = function() {
+            return 0.5; // قيمة ثابتة لأغراض العرض
+        };
+        
+        // محاكاة دالة range من Jinja
+        const range = (start, end) => {
+            return Array.from({length: end - start}, (_, i) => start + i);
+        };
+        
+        // محاكاة دالة random
+        const random = (min, max) => {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        };
+    </script>
+</body>
+</html>

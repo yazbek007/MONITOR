@@ -1328,59 +1328,59 @@ class NotificationManager:
         except:
             return False
         
+    
+    
     def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
-        """التحقق وإرسال الإشعارات مع تسجيل الأسباب"""
+        """التحقق وإرسال الإشعارات"""
         try:
             current_percentage = coin_signal.total_percentage
             coin_symbol = coin_signal.symbol
             coin_name = coin_signal.name
         
-            # ✅ تسجيل بدء التحقق
-            logger.debug(f"🔍 التحقق من إشعارات {coin_name} ({current_percentage:.1f}%)")
+            # تسجيل تفصيلي للتحقق
+            logger.info(f"🔍 التحقق من إشعارات {coin_name} ({current_percentage:.1f}%)")
+            logger.debug(f"   العتبات: شراء قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']}) | شراء({AppConfig.NOTIFICATION_THRESHOLDS['buy']})")
+            logger.debug(f"   العتبات: بيع({AppConfig.NOTIFICATION_THRESHOLDS['sell']}) | بيع قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']})")
         
             # التحقق من التكرار (30 دقيقة كحد أدنى بين الإشعارات لنفس العملة)
             if coin_symbol in self.last_notification_time:
                 time_since_last = datetime.now() - self.last_notification_time[coin_symbol]
                 if time_since_last.total_seconds() < 1800:  # 30 دقيقة
-                    logger.debug(f"   ⏰ آخر إشعار كان قبل {int(time_since_last.total_seconds()/60)} دقيقة")
+                    logger.debug(f"   آخر إشعار كان قبل {int(time_since_last.total_seconds()/60)} دقيقة - تخطي")
                     return False
         
             message = None
             notification_type = None
             priority = "default"
         
-            # ✅ تسجيل العتبات
-            logger.debug(f"   📊 العتبات: شراء قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']}) | شراء({AppConfig.NOTIFICATION_THRESHOLDS['buy']})")
-            logger.debug(f"   📊 العتبات: بيع({AppConfig.NOTIFICATION_THRESHOLDS['sell']}) | بيع قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']})")
-         
             # إشعارات بناء على مستوى الإشارة
             if current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
                 if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
                     message = self._create_buy_message(coin_signal, "قوية")
                     notification_type = "strong_buy"
                     priority = "high"
-                    logger.info(f"   🚀 مؤهل للإشعار: شراء قوي")
+                    logger.info(f"   مؤهل للإشعار: شراء قوي ({current_percentage:.1f}%)")
         
             elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
                 if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
                     message = self._create_sell_message(coin_signal, "قوية")
                     notification_type = "strong_sell"
                     priority = "high"
-                    logger.info(f"   ⚠️ مؤهل للإشعار: بيع قوي")
+                    logger.info(f"   مؤهل للإشعار: بيع قوي ({current_percentage:.1f}%)")
         
             elif current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['buy']:
                 if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['buy']:
                     message = self._create_buy_message(coin_signal, "عادية")
                     notification_type = "buy"
                     priority = "normal"
-                    logger.info(f"   📈 مؤهل للإشعار: شراء")
+                    logger.info(f"   مؤهل للإشعار: شراء ({current_percentage:.1f}%)")
         
             elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['sell']:
                 if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['sell']:
                     message = self._create_sell_message(coin_signal, "عادية")
                     notification_type = "sell"
                     priority = "normal"
-                    logger.info(f"   📉 مؤهل للإشعار: بيع")
+                    logger.info(f"   مؤهل للإشعار: بيع ({current_percentage:.1f}%)")
         
             # إشعارات التغير الكبير
             elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
@@ -1388,7 +1388,7 @@ class NotificationManager:
             
                 change = current_percentage - previous_signal.total_percentage
                 direction = "صاعد" if change > 0 else "هابط"
-                logger.info(f"   🔄 مؤهل للإشعار: تغير كبير ({direction})")
+                logger.info(f"   مؤهل للإشعار: تغير كبير ({direction})")
             
                 signal_type = coin_signal.signal_type.value
             
@@ -1402,9 +1402,12 @@ class NotificationManager:
                 priority = "low"
         
             else:
-                logger.debug(f"   ❌ غير مؤهل لأي إشعار (لا يفي بالشروط)")
+                logger.debug(f"   غير مؤهل لأي إشعار (لا يفي بالشروط)")
+                return False
         
+            # ✅ هذا هو السطر المفقود: إرسال الإشعار فعليًا
             if message:
+                logger.info(f"📤 محاولة إرسال إشعار {notification_type} لـ {coin_name}")
                 success = self.send_ntfy_notification(message, notification_type, priority)
             
                 if success:
@@ -1432,96 +1435,7 @@ class NotificationManager:
             return False
         
         except Exception as e:
-            logger.error(f"❌ خطأ في التحقق من الإشعارات: {e}", exc_info=True)
-            return False
-    
-    
-    def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
-        """التحقق وإرسال الإشعارات"""
-        try:
-            current_percentage = coin_signal.total_percentage
-            coin_symbol = coin_signal.symbol
-            coin_name = coin_signal.name
-            
-            # التحقق من التكرار (30 دقيقة كحد أدنى بين الإشعارات لنفس العملة)
-            if coin_symbol in self.last_notification_time:
-                time_since_last = datetime.now() - self.last_notification_time[coin_symbol]
-                if time_since_last.total_seconds() < 1800:  # 30 دقيقة
-                    return False
-            
-            message = None
-            notification_type = None
-            priority = "default"
-            
-            # إشعارات بناء على مستوى الإشارة
-            if current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
-                if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']:
-                    message = self._create_buy_message(coin_signal, "قوية")
-                    notification_type = "strong_buy"
-                    priority = "high"
-            
-            elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
-                if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']:
-                    message = self._create_sell_message(coin_signal, "قوية")
-                    notification_type = "strong_sell"
-                    priority = "high"
-            
-            elif current_percentage >= AppConfig.NOTIFICATION_THRESHOLDS['buy']:
-                if not previous_signal or previous_signal.total_percentage < AppConfig.NOTIFICATION_THRESHOLDS['buy']:
-                    message = self._create_buy_message(coin_signal, "عادية")
-                    notification_type = "buy"
-                    priority = "normal"
-            
-            elif current_percentage <= AppConfig.NOTIFICATION_THRESHOLDS['sell']:
-                if not previous_signal or previous_signal.total_percentage > AppConfig.NOTIFICATION_THRESHOLDS['sell']:
-                    message = self._create_sell_message(coin_signal, "عادية")
-                    notification_type = "sell"
-                    priority = "normal"
-            
-            # إشعارات التغير الكبير
-            elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
-                 AppConfig.NOTIFICATION_THRESHOLDS['significant_change']:
-                
-                change = current_percentage - previous_signal.total_percentage
-                direction = "صاعد" if change > 0 else "هابط"
-                signal_type = coin_signal.signal_type.value
-                
-                message = f"🔄 تغير كبير في {coin_name}\n"
-                message += f"من {previous_signal.total_percentage:.1f}% إلى {current_percentage:.1f}% ({direction})\n"
-                message += f"📊 الإشارة الحالية: {signal_type}\n"
-                message += f"💰 السعر: ${coin_signal.current_price:,.2f}\n"
-                message += f"⏰ {datetime.now().strftime('%H:%M')}"
-                
-                notification_type = "significant_change"
-                priority = "low"
-            
-            if message:
-                success = self.send_ntfy_notification(message, notification_type, priority)
-                
-                if success:
-                    notification_id = f"{coin_symbol}_{datetime.now().timestamp()}"
-                    notification = Notification(
-                        id=notification_id,
-                        timestamp=datetime.now(),
-                        coin_symbol=coin_symbol,
-                        coin_name=coin_name,
-                        message=message,
-                        notification_type=notification_type,
-                        signal_strength=current_percentage,
-                        price=coin_signal.current_price,
-                        priority=priority
-                    )
-                    
-                    self.add_notification(notification)
-                    self.last_notification_time[coin_symbol] = datetime.now()
-                    
-                    logger.info(f"تم إرسال إشعار {notification_type} لـ {coin_name}")
-                    return True
-            
-            return False
-            
-        except Exception as e:
-            logger.error(f"خطأ في التحقق من الإشعارات: {e}")
+            logger.error(f"❌ خطأ في التحقق من الإشعارات: {e}")
             return False
     
     def _create_buy_message(self, coin_signal: CoinSignal, strength: str) -> str:

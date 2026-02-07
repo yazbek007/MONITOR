@@ -1265,6 +1265,7 @@ class NotificationManager:
     """إدارة الإشعارات"""
     
     def __init__(self):
+        super().__init__()
         self.notification_history: List[Notification] = []
         self.max_history = 100
         self.last_notification_time = {}
@@ -1273,7 +1274,81 @@ class NotificationManager:
         
         # ✅ اختبار الاتصال عند الإنشاء
         self.test_ntfy_connection()
-        self.test_notification_system()
+        
+        # ✅ إرسال إشعار بدء التشغيل بعد 5 ثوانٍ
+        threading.Thread(target=self._send_startup_notification, daemon=True).start()
+    
+    def _send_startup_notification(self):
+        """إرسال إشعار بدء التشغيل بعد فترة قصيرة"""
+        time.sleep(5)  # انتظار 5 ثوانٍ لتهيئة النظام
+        
+        try:
+            startup_message = (
+                f"🚀 بدء تشغيل نظام الإشارات\n"
+                f"📊 الإصدار: 3.5.1 (مُحدث)\n"
+                f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"📍 الموقع: سوريا\n"
+                f"✅ النظام يعمل بشكل طبيعي"
+            )
+            
+            success = self.send_ntfy_notification(startup_message, "system", "low")
+            
+            if success:
+                logger.info("✅ تم إرسال إشعار بدء التشغيل")
+            else:
+                logger.warning("⚠️ فشل إرسال إشعار بدء التشغيل")
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال إشعار البدء: {e}")
+
+
+    
+    def send_test_notification(self):
+        """إرسال إشعار اختبار فوري"""
+        try:
+            test_message = (
+                f"🔔 TEST: Notification System Working\n"
+                f"📊 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"📍 From: Syria\n"
+                f"✅ System: Crypto Bot v3.5.1"
+            )
+            
+            success = self.send_ntfy_notification(test_message, "test", "high")
+            
+            if success:
+                logger.info("✅ تم إرسال إشعار الاختبار بنجاح!")
+            else:
+                logger.error("❌ فشل إرسال إشعار الاختبار")
+            
+            return success
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال إشعار الاختبار: {e}")
+            return False
+
+    def monitor_notification_status(self):
+        """مراقبة وتقرير حالة الإشعارات"""
+        try:
+            now = datetime.now()
+            report = []
+            
+            for coin_config in AppConfig.COINS:
+                symbol = coin_config.symbol
+                last_notif = self.last_notification_time.get(symbol)
+                
+                if last_notif:
+                    hours_since = (now - last_notif).total_seconds() / 3600
+                    report.append(f"{coin_config.name}: آخر إشعار قبل {hours_since:.1f} ساعة")
+                else:
+                    report.append(f"{coin_config.name}: لا توجد إشعارات سابقة")
+            
+            logger.info("📊 تقرير حالة الإشعارات:")
+            for line in report:
+                logger.info(f"   {line}")
+            
+            return report
+        except Exception as e:
+            logger.error(f"❌ خطأ في مراقبة حالة الإشعارات: {e}")
+            return []
 
     def test_notification_system(self):
         """اختبار نظام الإشعارات"""
@@ -1375,11 +1450,9 @@ class NotificationManager:
             return response.status_code == 200
         except:
             return False
-        
-    
-    
+  
     def check_and_send(self, coin_signal: CoinSignal, previous_signal: Optional[CoinSignal]) -> bool:
-        """التحقق وإرسال الإشعارات"""
+        """التحقق وإرسال الإشعارات مع تسجيل مفصل"""
         try:
             current_percentage = coin_signal.total_percentage
             coin_symbol = coin_signal.symbol
@@ -1398,13 +1471,15 @@ class NotificationManager:
             logger.info(f"   ⚡ العتبات: شراء قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_buy']}) | شراء({AppConfig.NOTIFICATION_THRESHOLDS['buy']})")
             logger.info(f"   ⚡ العتبات: بيع({AppConfig.NOTIFICATION_THRESHOLDS['sell']}) | بيع قوي({AppConfig.NOTIFICATION_THRESHOLDS['strong_sell']})")
     
-            # التحقق من التكرار (30 دقيقة كحد أدنى بين الإشعارات لنفس العملة)
+            # تقليل وقت الانتظار بين الإشعارات من 30 دقيقة إلى 5 دقائق للاختبار
+            MIN_NOTIFICATION_INTERVAL = 300  # 5 دقائق بدلاً من 30
+            
             if coin_symbol in self.last_notification_time:
                 time_since_last = datetime.now() - self.last_notification_time[coin_symbol]
                 minutes_since_last = int(time_since_last.total_seconds() / 60)
             
-                if time_since_last.total_seconds() < 1800:  # 30 دقيقة
-                    logger.info(f"   ⏰ آخر إشعار كان قبل {minutes_since_last} دقيقة - تخطي (30 دقيقة كحد أدنى)")
+                if time_since_last.total_seconds() < MIN_NOTIFICATION_INTERVAL:
+                    logger.info(f"   ⏰ آخر إشعار كان قبل {minutes_since_last} دقيقة - تخطي (5 دقائق كحد أدنى)")
                     return False
                 else:
                     logger.info(f"   ⏰ آخر إشعار كان قبل {minutes_since_last} دقيقة - مؤهل للإشعار")
@@ -1445,22 +1520,17 @@ class NotificationManager:
                     logger.info(f"   🔴 مؤهل للإشعار: بيع ({current_percentage:.1f}% ≤ {AppConfig.NOTIFICATION_THRESHOLDS['sell']})")
     
             # إشعارات التغير الكبير
-            elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= \
-                 AppConfig.NOTIFICATION_THRESHOLDS['significant_change']:
-
+            elif previous_signal and abs(current_percentage - previous_signal.total_percentage) >= AppConfig.NOTIFICATION_THRESHOLDS['significant_change']:
                 change = current_percentage - previous_signal.total_percentage
                 direction = "UP" if change > 0 else "DOWN"
-
                 logger.info(f"   🔄 مؤهل للإشعار: تغير كبير ({direction} {abs(change):.1f}% ≥ {AppConfig.NOTIFICATION_THRESHOLDS['significant_change']}%)")
-
-                signal_type = coin_signal.signal_type.value
- 
+                
                 message = f"🔄 BIG CHANGE: {coin_name}\n"
                 message += f"From {previous_signal.total_percentage:.1f}% to {current_percentage:.1f}% ({direction})\n"
-                message += f"📊 Current Signal: {signal_type}\n"
+                message += f"📊 Current Signal: {coin_signal.signal_type.value}\n"
                 message += f"💰 Price: ${coin_signal.current_price:,.2f}\n"
                 message += f"⏰ {datetime.now().strftime('%H:%M')}"
-
+                
                 notification_type = "significant_change"
                 priority = "low"
     
@@ -1698,8 +1768,9 @@ class SignalManager:
         self.max_history = 100
         self.update_lock = threading.Lock()
     
+
     def update_all_signals(self) -> bool:
-        """تحديث جميع الإشارات"""
+        """تحديث جميع الإشارات مع تحسين الإشعارات"""
         with self.update_lock:
             logger.info("=" * 60)
             logger.info(f"🚀 بدء تحديث الإشارات - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -1713,6 +1784,7 @@ class SignalManager:
             
                 success_count = 0
                 failed_coins = []
+                notifications_sent = 0
             
                 for coin_config in AppConfig.COINS:
                     if not coin_config.enabled:
@@ -1720,28 +1792,24 @@ class SignalManager:
                 
                     logger.info(f"🔍 معالجة {coin_config.name} ({coin_config.symbol})...")
                     previous_signal = self.signals.get(coin_config.symbol)
-                    logger.info(f"   الإشارة السابقة: {'موجودة' if previous_signal else 'غير موجودة'}")
                 
                     try:
                         coin_signal = self._process_coin_signal(coin_config)
                     
                         if coin_signal.is_valid:
-                            # التحقق من الإشعارات
                             logger.info(f"   ✅ إشارة صالحة: {coin_signal.total_percentage:.1f}%")
                         
-                            # تسجيل الفرق إذا كان هناك إشارة سابقة
-                            if previous_signal:
-                                diff = coin_signal.total_percentage - previous_signal.total_percentage
-                                logger.info(f"   📈 التغير: {diff:+.1f}% (من {previous_signal.total_percentage:.1f}%)")
-                        
-                            # التحقق من الإشعارات
-                            notification_sent = self.notification_manager.check_and_send(coin_signal, previous_signal)
-                            if notification_sent:
-                                logger.info(f"   📢 تم إرسال إشعار لـ {coin_config.name}")
-                        
-                            # حفظ الإشارة
+                            # حفظ الإشارة أولاً
                             self.signals[coin_config.symbol] = coin_signal
                             success_count += 1
+                        
+                            # التحقق من الإشعارات بعد الحفظ
+                            notification_sent = self.notification_manager.check_and_send(coin_signal, previous_signal)
+                            if notification_sent:
+                                notifications_sent += 1
+                                logger.info(f"   📢 تم إرسال إشعار لـ {coin_config.name}")
+                            else:
+                                logger.info(f"   📭 لم يتم إرسال إشعار لـ {coin_config.name} (غير مؤهل)")
                         
                         else:
                             error_msg = f"{coin_config.name}: {coin_signal.error_message}"
@@ -1762,6 +1830,7 @@ class SignalManager:
             
                 logger.info("=" * 60)
                 logger.info(f"✅ تم تحديث {success_count}/{len([c for c in AppConfig.COINS if c.enabled])} إشارات بنجاح")
+                logger.info(f"📤 تم إرسال {notifications_sent} إشعارات خلال هذه الدورة")
             
                 if failed_coins:
                     logger.warning(f"⚠️ العملات التي فشلت: {', '.join(failed_coins)}")
@@ -1773,8 +1842,6 @@ class SignalManager:
                 import traceback
                 logger.error(f"تفاصيل الخطأ:\n{traceback.format_exc()}")
                 return False
-
-
     
     def _update_fear_greed_index(self):
         """تحديث مؤشر الخوف والجشع"""
@@ -2292,16 +2359,87 @@ def get_history():
         'total': len(signal_manager.signal_history)
     })
 
-
-
-def background_updater():
-    """تحديث البيانات في الخلفية وإرسال النبضات"""
-    error_count = 0
-    max_errors = 5
+def background_monitor():
+    """مراقبة النظام في الخلفية وإرسال تقارير دورية"""
+    monitor_interval = 3600  # كل ساعة
+    
+    # الانتظار 30 ثانية قبل البدء
+    time.sleep(30)
+    
+    logger.info("👁️  بدأ خيط مراقبة النظام")
     
     while True:
         try:
-            logger.info("🔄 بدء دورة التحديث التلقائي...")
+            # الانتظار قبل كل دورة مراقبة
+            logger.info(f"⏳ مراقبة النظام: الانتظار {monitor_interval//60} دقائق للدورة القادمة")
+            time.sleep(monitor_interval)
+            
+            now = datetime.now()
+            logger.info(f"📊 بدء دورة مراقبة النظام الساعة {now.strftime('%H:%M:%S')}")
+            
+            # مراقبة حالة الإشعارات
+            try:
+                report = signal_manager.notification_manager.monitor_notification_status()
+                
+                # إعداد تقرير المراقبة
+                active_coins = len([c for c in AppConfig.COINS if c.enabled])
+                updated_coins = len(signal_manager.signals)
+                total_notifications = len(signal_manager.notification_manager.notification_history)
+                
+                report_message = (
+                    f"📊 تقرير مراقبة النظام\n"
+                    f"⏰ الوقت: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"💰 العملات النشطة: {active_coins}\n"
+                    f"🔄 العملات المحدثة: {updated_coins}\n"
+                    f"📈 نسبة التحديث: {(updated_coins/active_coins*100):.1f}%\n"
+                    f"🔔 إجمالي الإشعارات: {total_notifications}\n"
+                )
+                
+                # إضافة حالة آخر تحديث
+                if signal_manager.last_update:
+                    hours_since = (now - signal_manager.last_update).total_seconds() / 3600
+                    report_message += f"⏰ آخر تحديث: قبل {hours_since:.1f} ساعة\n"
+                else:
+                    report_message += f"⏰ آخر تحديث: غير متوفر\n"
+                
+                # إرسال تقرير المراقبة
+                success = signal_manager.notification_manager.send_ntfy_notification(
+                    report_message, 
+                    "heartbeat", 
+                    "low"
+                )
+                
+                if success:
+                    logger.info("✅ تم إرسال تقرير المراقبة الدورية")
+                else:
+                    logger.warning("⚠️ فشل إرسال تقرير المراقبة")
+                    
+            except Exception as e:
+                logger.error(f"❌ خطأ في مراقبة الإشعارات: {e}")
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في مراقبة الخلفية: {e}")
+            time.sleep(300)  # انتظار 5 دقائق ثم المحاولة مرة أخرى
+
+def background_updater():
+    """تحديث البيانات في الخلفية وإرسال النبضات مع تحسين التسجيل"""
+    error_count = 0
+    max_errors = 5
+    
+    # الانتظار 10 ثوانٍ قبل البدء للتأكد من تهيئة النظام
+    time.sleep(10)
+    
+    # إرسال إشعار اختبار عند البدء
+    logger.info("🔔 إرسال إشعار اختبار أولي...")
+    try:
+        signal_manager.notification_manager.send_test_notification()
+    except Exception as e:
+        logger.error(f"❌ خطأ في إرسال اختبار البدء: {e}")
+    
+    while True:
+        try:
+            now = datetime.now()
+            logger.info(f"🔄 بدء دورة التحديث التلقائي الساعة {now.strftime('%Y-%m-%d %H:%M:%S')}")
             
             if error_count >= max_errors:
                 logger.error(f"❌ وصل إلى الحد الأقصى للأخطاء ({max_errors})، إعادة تهيئة النظام...")
@@ -2315,6 +2453,13 @@ def background_updater():
             if success:
                 error_count = max(0, error_count - 1)  # تقليل عداد الأخطاء
                 logger.info(f"✅ التحديث التلقائي ناجح، عداد الأخطاء: {error_count}")
+                
+                # مراقبة حالة الإشعارات بعد التحديث الناجح
+                try:
+                    signal_manager.notification_manager.monitor_notification_status()
+                except Exception as e:
+                    logger.error(f"❌ خطأ في مراقبة الإشعارات: {e}")
+                    
             else:
                 error_count += 1
                 logger.warning(f"⚠️ فشل التحديث، عداد الأخطاء: {error_count}/{max_errors}")
@@ -2327,7 +2472,9 @@ def background_updater():
             
             # تسجيل وقت التحديث التالي
             next_update = datetime.now() + timedelta(seconds=AppConfig.UPDATE_INTERVAL)
-            logger.info(f"⏳ الانتظار حتى التحديث التالي: {next_update.strftime('%H:%M:%S')}")
+            wait_minutes = AppConfig.UPDATE_INTERVAL // 60
+            logger.info(f"⏳ الانتظار {wait_minutes} دقائق حتى التحديث التالي: {next_update.strftime('%H:%M:%S')}")
+            
             time.sleep(AppConfig.UPDATE_INTERVAL)
             
         except Exception as e:
@@ -2336,7 +2483,6 @@ def background_updater():
             import traceback
             logger.error(f"تفاصيل الخطأ:\n{traceback.format_exc()}")
             time.sleep(60)  # انتظار دقيقة ثم إعادة المحاولة
-# ======================
 # تشغيل التطبيق
 # ======================
 
@@ -2360,6 +2506,16 @@ if __name__ == '__main__':
     print(f"🔔 نظام إشعارات متقدم مع تحسين الدقة")
     print(f"🔧 وضع التطوير: {os.environ.get('DEBUG', 'False')}")
     print("=" * 60)
+
+    # بدء خيط التحديث التلقائي
+    updater_thread = threading.Thread(target=background_updater, daemon=True)
+    updater_thread.start()
+
+    # بدء خيط المراقبة
+    monitor_thread = threading.Thread(target=background_monitor, daemon=True)
+    monitor_thread.start()
+
+    logger.info("👁️  بدء خيط مراقبة النظام")
     
     # إرسال إشعار بدء التشغيل إلى NTFY
     def send_startup_notification():

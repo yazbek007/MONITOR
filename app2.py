@@ -2422,69 +2422,28 @@ def background_monitor():
             time.sleep(300)  # انتظار 5 دقائق ثم المحاولة مرة أخرى
 
 def background_updater():
-    """تحديث البيانات في الخلفية وإرسال النبضات مع تحسين التسجيل"""
-    error_count = 0
-    max_errors = 5
+    """تحديث تلقائي بسيط جداً"""
+    logger.info("🔧 بدأ التحديث التلقائي البسيط جداً")
     
-    # الانتظار 10 ثوانٍ قبل البدء للتأكد من تهيئة النظام
-    time.sleep(10)
-    
-    # إرسال إشعار اختبار عند البدء
-    logger.info("🔔 إرسال إشعار اختبار أولي...")
-    try:
-        signal_manager.notification_manager.send_test_notification()
-    except Exception as e:
-        logger.error(f"❌ خطأ في إرسال اختبار البدء: {e}")
-    
+    # مجرد حلقة لا نهائية تستدعي التحديث
     while True:
         try:
-            now = datetime.now()
-            logger.info(f"🔄 بدء دورة التحديث التلقائي الساعة {now.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"\n{'='*50}")
+            print(f"🔄 التحديث التلقائي في: {datetime.now().strftime('%H:%M:%S')}")
+            print(f"{'='*50}")
             
-            if error_count >= max_errors:
-                logger.error(f"❌ وصل إلى الحد الأقصى للأخطاء ({max_errors})، إعادة تهيئة النظام...")
-                # إعادة تهيئة المكونات
-                signal_manager.__init__()
-                error_count = 0
+            # ⭐⭐ السطر الوحيد المهم ⭐⭐
+            signal_manager.update_all_signals()
             
-            # تحديث الإشارات
-            success = signal_manager.update_all_signals()
+            # انتظار
+            time.sleep(120)  # دقيقتين
             
-            if success:
-                error_count = max(0, error_count - 1)  # تقليل عداد الأخطاء
-                logger.info(f"✅ التحديث التلقائي ناجح، عداد الأخطاء: {error_count}")
-                
-                # مراقبة حالة الإشعارات بعد التحديث الناجح
-                try:
-                    signal_manager.notification_manager.monitor_notification_status()
-                except Exception as e:
-                    logger.error(f"❌ خطأ في مراقبة الإشعارات: {e}")
-                    
-            else:
-                error_count += 1
-                logger.warning(f"⚠️ فشل التحديث، عداد الأخطاء: {error_count}/{max_errors}")
-            
-            # إرسال نبضات النظام كل ساعتين
-            try:
-                signal_manager.notification_manager.check_and_send_heartbeat()
-            except Exception as e:
-                logger.error(f"❌ خطأ في إرسال النبضات: {e}")
-            
-            # تسجيل وقت التحديث التالي
-            next_update = datetime.now() + timedelta(seconds=AppConfig.UPDATE_INTERVAL)
-            wait_minutes = AppConfig.UPDATE_INTERVAL // 60
-            logger.info(f"⏳ الانتظار {wait_minutes} دقائق حتى التحديث التالي: {next_update.strftime('%H:%M:%S')}")
-            
-            time.sleep(AppConfig.UPDATE_INTERVAL)
-            
+        except KeyboardInterrupt:
+            break
         except Exception as e:
-            error_count += 1
-            logger.error(f"❌ خطأ في التحديث التلقائي ({error_count}/{max_errors}): {e}")
-            import traceback
-            logger.error(f"تفاصيل الخطأ:\n{traceback.format_exc()}")
-            time.sleep(60)  # انتظار دقيقة ثم إعادة المحاولة
-# تشغيل التطبيق
-# ======================
+            print(f"❌ خطأ: {e}")
+            time.sleep(60)
+
 
 # ======================
 # تشغيل التطبيق

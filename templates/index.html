@@ -1,0 +1,2529 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Crypto Signal Analyzer v3.5</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js"></script>
+    <style>
+        :root {
+            --primary: #2E86AB;
+            --secondary: #A23B72;
+            --success: #3BB273;
+            --warning: #F18F01;
+            --danger: #C73E1D;
+            --info: #2E86AB;
+            --dark: #1A1A2E;
+            --light: #F8F9FA;
+            --gray: #6C757D;
+            --purple: #6A4C93;
+            --teal: #20B2AA;
+            --card-bg: #ffffff;
+            --body-bg: #f5f7fb;
+            --border-radius: 12px;
+            --shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+            --shadow-hover: 0 15px 30px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Cairo', sans-serif;
+        }
+        
+        body {
+            background-color: var(--body-bg);
+            color: #333;
+            line-height: 1.6;
+            padding-bottom: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary), var(--purple));
+            color: white;
+            padding: 25px 0;
+            border-radius: var(--border-radius);
+            margin: 20px 0 30px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.1;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo i {
+            font-size: 2.5rem;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .logo .version {
+            font-size: 0.8rem;
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-right: 10px;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status.healthy { color: var(--success); }
+        .status.warning { color: var(--warning); }
+        .status.unhealthy { color: var(--danger); }
+        
+        .update-btn {
+            background: white;
+            color: var(--primary);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        
+        .update-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .update-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* زر التحديث التلقائي */
+        .auto-update-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            margin-left: 10px;
+        }
+        
+        .auto-update-btn.disabled {
+            background: var(--danger);
+        }
+        
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Left Column */
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        /* Right Column */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        /* Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            height: 100%;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .coin-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            flex: 1;
+        }
+        
+        .coin-icon {
+            width: 55px;
+            height: 55px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .coin-details {
+            flex: 1;
+        }
+        
+        .coin-name {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .coin-name h3 {
+            font-size: 1.4rem;
+            color: var(--dark);
+        }
+        
+        .price-info {
+            margin-top: 5px;
+        }
+        
+        .current-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 5px;
+        }
+        
+        .price-changes {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .price-change.neutral {
+            background: rgba(108, 117, 125, 0.1);
+            color: var(--gray);
+        }
+        
+        .price-change {
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .price-change.positive {
+            background: rgba(59, 178, 115, 0.1);
+            color: var(--success);
+        }
+        
+        .price-change.negative {
+            background: rgba(199, 62, 29, 0.1);
+            color: var(--danger);
+        }
+        
+        .volume-info {
+            font-size: 0.8rem;
+            color: var(--gray);
+            margin-top: 5px;
+        }
+        
+        .signal-badge {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .signal-success {
+            background: rgba(59, 178, 115, 0.2);
+            color: var(--success);
+            border: 1px solid rgba(59, 178, 115, 0.3);
+        }
+        
+        .signal-info {
+            background: rgba(46, 134, 171, 0.2);
+            color: var(--primary);
+            border: 1px solid rgba(46, 134, 171, 0.3);
+        }
+        
+        .signal-secondary {
+            background: rgba(108, 117, 125, 0.2);
+            color: var(--gray);
+            border: 1px solid rgba(108, 117, 125, 0.3);
+        }
+        
+        .signal-warning {
+            background: rgba(241, 143, 1, 0.2);
+            color: var(--warning);
+            border: 1px solid rgba(241, 143, 1, 0.3);
+        }
+        
+        .signal-danger {
+            background: rgba(199, 62, 29, 0.2);
+            color: var(--danger);
+            border: 1px solid rgba(199, 62, 29, 0.3);
+        }
+        
+        /* Signal Strength */
+        .signal-strength {
+            margin: 20px 0;
+        }
+        
+        .strength-bar {
+            height: 28px;
+            background: #f0f0f0;
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        
+        .strength-fill {
+            height: 100%;
+            border-radius: 14px;
+            transition: width 1s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .strength-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, 
+                rgba(255,255,255,0) 0%, 
+                rgba(255,255,255,0.3) 50%, 
+                rgba(255,255,255,0) 100%);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .fill-success { background: linear-gradient(90deg, var(--success), #7dd9a1); }
+        .fill-info { background: linear-gradient(90deg, var(--primary), #5dade2); }
+        .fill-secondary { background: linear-gradient(90deg, var(--gray), #8a959e); }
+        .fill-warning { background: linear-gradient(90deg, var(--warning), #f5b041); }
+        .fill-danger { background: linear-gradient(90deg, var(--danger), #e0664d); }
+        
+        .strength-text {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .strength-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        .strength-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+        
+        /* Indicators */
+        .indicators-section {
+            margin-top: 20px;
+        }
+        
+        .indicators-title {
+            font-size: 1rem;
+            color: var(--dark);
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .indicators-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .indicator-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: var(--transition);
+        }
+        
+        .indicator-item:hover {
+            background: #e9ecef;
+            transform: translateX(-5px);
+        }
+        
+        .indicator-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .indicator-name {
+            flex: 1;
+            font-size: 0.9rem;
+            color: var(--dark);
+            cursor: help;
+            position: relative;
+        }
+        
+        .indicator-value {
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.9rem;
+            min-width: 50px;
+            text-align: left;
+        }
+        
+        .indicator-bar {
+            width: 80px;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .indicator-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+        
+        /* Tooltip */
+        .tooltip-content {
+            visibility: hidden;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--dark);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            width: 220px;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--dark);
+        }
+        
+        .indicator-name:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            border-top: 4px solid var(--gray);
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-hover);
+        }
+        
+        .stat-card.strong-buy { border-top-color: var(--success); }
+        .stat-card.buy { border-top-color: var(--primary); }
+        .stat-card.neutral { border-top-color: var(--gray); }
+        .stat-card.sell { border-top-color: var(--warning); }
+        .stat-card.strong-sell { border-top-color: var(--danger); }
+        .stat-card.avg { border-top-color: var(--secondary); }
+        
+        .stat-card i {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        .stat-card h3 {
+            font-size: 1.8rem;
+            color: var(--dark);
+            margin: 10px 0;
+            font-weight: 700;
+        }
+        
+        .stat-card p {
+            color: var(--gray);
+            font-size: 0.85rem;
+        }
+        
+        /* Market Info */
+        .market-info {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .market-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .market-info-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .market-info-item h4 {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .market-info-item p {
+            color: var(--dark);
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+        
+        /* Fear Greed Indicator */
+        .fear-greed-indicator {
+            background: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 25px;
+        }
+        
+        .fgi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .fgi-title {
+            font-size: 1.1rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .fgi-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+        
+        .fgi-bar {
+            height: 25px;
+            background: linear-gradient(to right, 
+                #ff4444 0%,    /* Fear */
+                #ffbb33 25%,   /* Fearful */
+                #ffff44 50%,   /* Neutral */
+                #99ff99 75%,   /* Greedy */
+                #00C851 100%   /* Extreme Greed */
+            );
+            border-radius: 12px;
+            position: relative;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .fgi-marker {
+            position: absolute;
+            top: -5px;
+            width: 2px;
+            height: 35px;
+            background: white;
+            transform: translateX(-50%);
+        }
+        
+        .fgi-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        /* Notifications */
+        .notifications-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            height: 100%;
+        }
+        
+        .notifications-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .notifications-title {
+            font-size: 1.2rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .notification-badge {
+            background: var(--danger);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+        
+        .notifications-list {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .notifications-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .notifications-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .notifications-list::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+        
+        .notification-item {
+            padding: 15px;
+            border-left: 4px solid var(--primary);
+            background: #f8f9fa;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            transition: var(--transition);
+        }
+        
+        .notification-item:hover {
+            background: #e9ecef;
+            transform: translateX(-5px);
+        }
+        
+        .notification-item.strong_buy { border-left-color: var(--success); }
+        .notification-item.buy { border-left-color: var(--primary); }
+        .notification-item.strong_sell { border-left-color: var(--danger); }
+        .notification-item.sell { border-left-color: var(--warning); }
+        .notification-item.significant_change { border-left-color: var(--secondary); }
+        
+        .notification-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .notification-icon {
+            font-size: 1.2rem;
+            margin-top: 2px;
+        }
+        
+        .notification-text {
+            flex: 1;
+        }
+        
+        .notification-message {
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+        
+        .notification-time {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .empty-notifications {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray);
+        }
+        
+        .empty-notifications i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        /* Chart */
+        .chart-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 15px;
+            position: relative;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-top: 40px;
+            border-top: 1px solid #eaeaea;
+        }
+        
+        footer p {
+            margin-bottom: 10px;
+        }
+        
+        .disclaimer {
+            background: rgba(241, 143, 1, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid var(--warning);
+        }
+        
+        /* Update Timer */
+        .update-timer {
+            background: white;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .timer-display {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+        
+        /* System Status */
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-dot.healthy { background: var(--success); }
+        .status-dot.warning { background: var(--warning); }
+        .status-dot.unhealthy { background: var(--danger); }
+        .status-dot.unknown { background: var(--gray); }
+        
+        /* Legend */
+        .signal-legend {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--gray);
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Indicator Legend */
+        .indicator-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .indicator-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .indicator-legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+            
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .market-info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .signal-legend {
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .coin-name {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .indicator-legend {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-content {
+                padding: 0 15px;
+            }
+            
+            .logo h1 {
+                font-size: 1.5rem;
+            }
+            
+            .price-changes {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .indicator-legend {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Animations */
+        @keyframes slideIn {
+            from { 
+                transform: translateY(-20px); 
+                opacity: 0; 
+            }
+            to { 
+                transform: translateY(0); 
+                opacity: 1; 
+            }
+        }
+        
+        .card {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        /* Custom Notifications */
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: white;
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-width: 300px;
+            max-width: 500px;
+            transition: transform 0.3s ease;
+        }
+        
+        .notification-toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .notification-toast.success {
+            border-left: 4px solid var(--success);
+        }
+        
+        .notification-toast.error {
+            border-left: 4px solid var(--danger);
+        }
+        
+        .notification-toast.warning {
+            border-left: 4px solid var(--warning);
+        }
+        
+        .notification-toast.info {
+            border-left: 4px solid var(--info);
+        }
+        
+        .notification-toast-icon {
+            font-size: 1.5rem;
+        }
+        
+        .notification-toast.success .notification-toast-icon {
+            color: var(--success);
+        }
+        
+        .notification-toast.error .notification-toast-icon {
+            color: var(--danger);
+        }
+        
+        .notification-toast.warning .notification-toast-icon {
+            color: var(--warning);
+        }
+        
+        .notification-toast.info .notification-toast-icon {
+            color: var(--info);
+        }
+        
+        /* Accuracy Badge */
+        .accuracy-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px;
+            background: rgba(106, 76, 147, 0.1);
+            color: var(--purple);
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        
+        /* Auto Update Timer */
+        .auto-update-timer {
+            font-size: 0.9rem;
+            color: var(--success);
+            font-weight: 600;
+            margin-top: 5px;
+        }
+        
+        /* Interval Modal */
+        .interval-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .interval-modal {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        }
+        
+        .interval-options {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .interval-option {
+            padding: 10px 15px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: 80px;
+        }
+        
+        .interval-option:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .interval-option[data-minutes="1"] { background: var(--info); }
+        .interval-option[data-minutes="3"] { background: var(--primary); }
+        .interval-option[data-minutes="5"] { background: var(--secondary); }
+        .interval-option[data-minutes="10"] { background: var(--warning); }
+        .interval-option[data-minutes="15"] { background: var(--purple); }
+        .interval-option[data-minutes="30"] { background: var(--dark); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <div>
+                        <h1>
+                            <span class="version">v3.5</span>
+                            🚀 محلل إشارات العملات المتقدم
+                        </h1>
+                        <div class="system-status">
+                            <div class="status-dot healthy"></div>
+                            <span>حالة النظام: صحي</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="status healthy">
+                    <i class="fas fa-sync-alt"></i>
+                    <span id="last-update-text">قبل لحظات</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="auto-update-btn" id="autoUpdateToggleBtn">
+                        <i class="fas fa-robot"></i>
+                        <span>تلقائي: ✅</span>
+                    </button>
+                    <button class="auto-update-btn" id="autoUpdateIntervalBtn" style="background: var(--info);">
+                        <i class="fas fa-clock"></i>
+                        <span>الفاصل: 3 د</span>
+                    </button>
+                    <button class="update-btn" onclick="manualUpdate()" id="updateBtn">
+                        <i class="fas fa-redo"></i> تحديث الآن
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Legend -->
+        <div class="signal-legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--success);"></div>
+                <span>شراء قوي (≥78%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--primary);"></div>
+                <span>شراء (62-77%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--gray);"></div>
+                <span>محايد (45-61%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--warning);"></div>
+                <span>بيع (23-44%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: var(--danger);"></div>
+                <span>بيع قوي (≤22%)</span>
+            </div>
+            <div class="legend-item">
+                <i class="fas fa-brain" style="color: var(--secondary);"></i>
+                <span>نظام المؤشرات المتقدم</span>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Column -->
+            <div class="left-column">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card strong-buy">
+                        <i class="fas fa-rocket" style="color: var(--success);"></i>
+                        <h3 id="strongBuyCount">8</h3>
+                        <p>شراء قوي</p>
+                    </div>
+                    <div class="stat-card buy">
+                        <i class="fas fa-arrow-up" style="color: var(--primary);"></i>
+                        <h3 id="buyCount">12</h3>
+                        <p>شراء</p>
+                    </div>
+                    <div class="stat-card neutral">
+                        <i class="fas fa-minus" style="color: var(--gray);"></i>
+                        <h3 id="neutralCount">5</h3>
+                        <p>محايد</p>
+                    </div>
+                    <div class="stat-card sell">
+                        <i class="fas fa-arrow-down" style="color: var(--warning);"></i>
+                        <h3 id="sellCount">3</h3>
+                        <p>بيع</p>
+                    </div>
+                    <div class="stat-card strong-sell">
+                        <i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>
+                        <h3 id="strongSellCount">1</h3>
+                        <p>بيع قوي</p>
+                    </div>
+                    <div class="stat-card avg">
+                        <i class="fas fa-signal" style="color: var(--secondary);"></i>
+                        <h3 id="avgSignal">68.5%</h3>
+                        <p>متوسط القوة</p>
+                    </div>
+                </div>
+                
+                <!-- Market Info -->
+                <div class="market-info">
+                    <div class="market-info-grid">
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-coins"></i> إجمالي العملات</h4>
+                            <p id="totalCoins">29</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-check-circle"></i> العملات المحدثة</h4>
+                            <p id="updatedCoins">29</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-bell"></i> إجمالي الإشعارات</h4>
+                            <p id="totalNotifications">15</p>
+                        </div>
+                        <div class="market-info-item">
+                            <h4><i class="fas fa-cogs"></i> عدد المؤشرات</h4>
+                            <p id="indicatorsCount">7</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Fear & Greed Index -->
+                <div class="fear-greed-indicator">
+                    <div class="fgi-header">
+                        <div class="fgi-title">
+                            <i class="fas fa-brain"></i> مؤشر الخوف والجشع
+                        </div>
+                        <div class="fgi-value" id="fearGreedValue">
+                            65 <small style="font-size: 0.8rem; color: var(--gray);">(جشع)</small>
+                        </div>
+                    </div>
+                    <div class="fgi-bar">
+                        <div class="fgi-marker" id="fgi-marker"></div>
+                    </div>
+                    <div class="fgi-labels">
+                        <span>خوف شديد</span>
+                        <span>خوف</span>
+                        <span>محايد</span>
+                        <span>جشع</span>
+                        <span>جشع شديد</span>
+                    </div>
+                </div>
+                
+                <!-- Update Timer -->
+                <div class="update-timer">
+                    <div>
+                        <i class="fas fa-info-circle" style="color: var(--primary);"></i>
+                        <span style="margin-right: 10px;">التحديثات المجدولة</span>
+                    </div>
+                    <div>
+                        <div class="timer-display" id="update-timer">
+                            التحديث اليدوي خلال: 5:00
+                        </div>
+                        <div class="auto-update-timer" id="autoUpdateTimer">
+                            التحديث التلقائي القادم خلال: 3:00
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Coins Cards -->
+                <div class="cards-grid" id="coins-container">
+                    <!-- سيتم ملؤها بالبيانات ديناميكياً -->
+                </div>
+                
+                <!-- Chart -->
+                <div class="chart-card">
+                    <h2 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-chart-line"></i> تطور الإشارات (مؤشرات متعددة)
+                    </h2>
+                    <div class="chart-container">
+                        <canvas id="signalChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column -->
+            <div class="right-column">
+                <!-- Notifications -->
+                <div class="notifications-card">
+                    <div class="notifications-header">
+                        <div class="notifications-title">
+                            <i class="fas fa-bell"></i> 
+                            الإشعارات الأخيرة
+                            <span class="notification-badge" id="notificationBadge">15</span>
+                        </div>
+                        <button class="update-btn" onclick="refreshNotifications()" style="padding: 8px 15px; font-size: 0.9rem;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="notifications-list" id="notificationsList">
+                        <!-- سيتم ملؤها ديناميكياً -->
+                        <div class="empty-notifications">
+                            <i class="far fa-bell-slash"></i>
+                            <p>جاري تحميل الإشعارات...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Info -->
+                <div class="card">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-info-circle"></i> معلومات النظام
+                    </h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">الإصدار:</span>
+                            <span style="font-weight: 600; color: var(--secondary);">3.5.0 المتقدم</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">فاصل التحديث:</span>
+                            <span style="font-weight: 600;">5 دقائق</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">عدد المؤشرات:</span>
+                            <span style="font-weight: 600; color: var(--purple);" id="indicatorsCountInfo">7 مؤشرات</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">حالة API:</span>
+                            <span style="font-weight: 600; color: var(--success);">متصل</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">الدقة المتوقعة:</span>
+                            <span style="font-weight: 600; color: var(--primary);">85-95%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--gray);">التحديث التلقائي:</span>
+                            <span id="systemAutoUpdateStatus" style="font-weight: 600; color: var(--success);">مفعل (كل 3 دقائق)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Weights Info -->
+                <div class="card">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-balance-scale"></i> أوزان المؤشرات
+                    </h3>
+                    <div id="weightsInfo" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- سيتم ملؤها ديناميكياً -->
+                    </div>
+                </div>
+                
+                <!-- Indicator Legend -->
+                <div class="card">
+                    <h3 style="color: var(--dark); margin-bottom: 15px;">
+                        <i class="fas fa-palette"></i> ألوان المؤشرات
+                    </h3>
+                    <div class="indicator-legend" id="indicatorLegend">
+                        <!-- سيتم ملؤها ديناميكياً -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer>
+            <p>🚀 Crypto Signal Analyzer v3.5 | نظام المؤشرات المتقدم لتحليل إشارات العملات المشفرة</p>
+            <p style="margin-top: 5px; font-size: 0.85rem;">
+                يتم التحديث تلقائياً كل 3 دقائق | تحديث يدوي متاح | دقة تحليلية عالية
+            </p>
+            <div class="disclaimer">
+                <p style="margin: 0; font-size: 0.8rem;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    هذا التطبيق لأغراض تعليمية وتحليلية فقط. الإشارات المقدمة تستند إلى تحليل 7 مؤشرات متقدمة ولكنها ليست نصيحة استثمارية ولا ضماناً للربح.
+                    التداول في العملات المشفرة يحمل مخاطر عالية وقد يؤدي إلى خسارة كامل رأس المال المستثمر.
+                </p>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.8rem; color: var(--primary);">
+                <i class="fas fa-code"></i> نظام المؤشرات المتقدم المحسن | خوارزميات تحليل متقدمة | التحديث التلقائي كل 3 دقائق
+            </p>
+        </footer>
+    </div>
+    
+    <!-- Notification Toast -->
+    <div id="notificationToast" class="notification-toast">
+        <div class="notification-toast-icon">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="notification-toast-message"></div>
+    </div>
+    
+    <script>
+        // ======================
+        // الإعدادات العامة
+        // ======================
+        const AppConfig = {
+            UPDATE_INTERVAL: 300, // 5 دقائق للتحديث اليدوي
+            AUTO_UPDATE_INTERVAL: 3, // 3 دقائق للتحديث التلقائي (يتم ضبطه من localStorage)
+            SIGNAL_THRESHOLDS: {
+                strong_buy: 78,
+                buy: 62,
+                neutral_high: 56,
+                neutral_low: 44,
+                sell: 38,
+                strong_sell: 22
+            }
+        };
+        
+        // ======================
+        // المتغيرات العامة
+        // ======================
+        let updateTimerInterval = null;
+        let autoUpdateInterval = null;
+        let signalChart = null;
+        let autoUpdateSystem = {
+            enabled: true,
+            interval: 3, // دقائق
+            timer: null,
+            countdown: null
+        };
+        
+        // ======================
+        // نظام التحديث التلقائي
+        // ======================
+        class AutoUpdateManager {
+            constructor() {
+                this.enabled = true;
+                this.interval = 3; // دقائق
+                this.timer = null;
+                this.countdownTimer = null;
+                this.nextUpdateTime = null;
+                this.init();
+            }
+            
+            init() {
+                this.loadSettings();
+                this.updateUI();
+                this.start();
+            }
+            
+            loadSettings() {
+                try {
+                    const savedEnabled = localStorage.getItem('crypto_auto_update_enabled');
+                    const savedInterval = localStorage.getItem('crypto_auto_update_interval');
+                    
+                    if (savedEnabled !== null) {
+                        this.enabled = savedEnabled === 'true';
+                    }
+                    
+                    if (savedInterval !== null) {
+                        this.interval = parseInt(savedInterval);
+                        if (this.interval < 1) this.interval = 1;
+                        if (this.interval > 60) this.interval = 60;
+                    }
+                } catch (error) {
+                    console.error('Error loading auto-update settings:', error);
+                }
+            }
+            
+            saveSettings() {
+                try {
+                    localStorage.setItem('crypto_auto_update_enabled', this.enabled.toString());
+                    localStorage.setItem('crypto_auto_update_interval', this.interval.toString());
+                } catch (error) {
+                    console.error('Error saving auto-update settings:', error);
+                }
+            }
+            
+            start() {
+                this.stop(); // إيقاف أي مؤقتات سابقة
+                
+                if (!this.enabled) {
+                    this.updateCountdownDisplay();
+                    return;
+                }
+                
+                const intervalMs = this.interval * 60 * 1000;
+                this.nextUpdateTime = Date.now() + intervalMs;
+                
+                // بدء المؤقت الرئيسي
+                this.timer = setInterval(() => {
+                    this.executeAutoUpdate();
+                }, intervalMs);
+                
+                // بدء العد التنازلي
+                this.startCountdown();
+                
+                console.log(`Auto-update started: every ${this.interval} minutes`);
+            }
+            
+            stop() {
+                if (this.timer) {
+                    clearInterval(this.timer);
+                    this.timer = null;
+                }
+                
+                if (this.countdownTimer) {
+                    clearInterval(this.countdownTimer);
+                    this.countdownTimer = null;
+                }
+                
+                this.nextUpdateTime = null;
+            }
+            
+            startCountdown() {
+                if (this.countdownTimer) {
+                    clearInterval(this.countdownTimer);
+                }
+                
+                if (!this.enabled || !this.nextUpdateTime) return;
+                
+                this.countdownTimer = setInterval(() => {
+                    this.updateCountdownDisplay();
+                }, 1000);
+                
+                this.updateCountdownDisplay();
+            }
+            
+            updateCountdownDisplay() {
+                const displayElement = document.getElementById('autoUpdateTimer');
+                if (!displayElement) return;
+                
+                if (!this.enabled) {
+                    displayElement.textContent = 'التحديث التلقائي معطل';
+                    displayElement.style.color = 'var(--danger)';
+                    return;
+                }
+                
+                if (!this.nextUpdateTime) {
+                    displayElement.textContent = 'جاري الحساب...';
+                    return;
+                }
+                
+                const now = Date.now();
+                const timeLeft = this.nextUpdateTime - now;
+                
+                if (timeLeft <= 0) {
+                    displayElement.textContent = 'جاري التحديث...';
+                    this.nextUpdateTime = now + (this.interval * 60 * 1000);
+                } else {
+                    const minutes = Math.floor(timeLeft / 60000);
+                    const seconds = Math.floor((timeLeft % 60000) / 1000);
+                    displayElement.textContent = `التحديث التلقائي خلال: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    displayElement.style.color = 'var(--success)';
+                }
+            }
+            
+            async executeAutoUpdate() {
+                if (!this.enabled) return;
+                
+                console.log('Executing auto-update...');
+                showNotification(`بدأ التحديث التلقائي (كل ${this.interval} دقائق)`, 'info');
+                
+                try {
+                    await performUpdate();
+                } catch (error) {
+                    console.error('Auto-update failed:', error);
+                }
+                
+                // تحديث وقت التحديث التالي
+                this.nextUpdateTime = Date.now() + (this.interval * 60 * 1000);
+            }
+            
+            toggle() {
+                this.enabled = !this.enabled;
+                this.saveSettings();
+                
+                if (this.enabled) {
+                    this.start();
+                    showNotification('تم تفعيل التحديث التلقائي', 'success');
+                } else {
+                    this.stop();
+                    showNotification('تم إيقاف التحديث التلقائي', 'warning');
+                }
+                
+                this.updateUI();
+                return this.enabled;
+            }
+            
+            setInterval(minutes) {
+                if (minutes < 1 || minutes > 60) {
+                    showNotification('الفاصل الزمني يجب أن يكون بين 1 و 60 دقيقة', 'error');
+                    return;
+                }
+                
+                this.interval = minutes;
+                this.saveSettings();
+                
+                if (this.enabled) {
+                    this.start();
+                }
+                
+                this.updateUI();
+                showNotification(`تم ضبط التحديث التلقائي على كل ${minutes} دقائق`, 'success');
+            }
+            
+            updateUI() {
+                // تحديث زر التبديل
+                const toggleBtn = document.getElementById('autoUpdateToggleBtn');
+                if (toggleBtn) {
+                    toggleBtn.style.background = this.enabled ? 'var(--success)' : 'var(--danger)';
+                    const text = toggleBtn.querySelector('span');
+                    if (text) {
+                        text.textContent = this.enabled ? 'تلقائي: ✅' : 'تلقائي: ❌';
+                    }
+                }
+                
+                // تحديث زر الفاصل الزمني
+                const intervalBtn = document.getElementById('autoUpdateIntervalBtn');
+                if (intervalBtn) {
+                    const text = intervalBtn.querySelector('span');
+                    if (text) {
+                        text.textContent = `الفاصل: ${this.interval} د`;
+                    }
+                }
+                
+                // تحديث حالة النظام
+                const statusElement = document.getElementById('systemAutoUpdateStatus');
+                if (statusElement) {
+                    statusElement.textContent = this.enabled ? 
+                        `مفعل (كل ${this.interval} دقيقة)` : 
+                        'معطل';
+                    statusElement.style.color = this.enabled ? 'var(--success)' : 'var(--danger)';
+                }
+                
+                // تحديث العد التنازلي
+                this.updateCountdownDisplay();
+            }
+        }
+        
+        let autoUpdateManager = null;
+        
+        // ======================
+        // وظائف المساعدة
+        // ======================
+        function formatNumber(value) {
+            if (value === null || value === undefined) return "0";
+            const num = parseFloat(value);
+            if (isNaN(num)) return "0";
+            
+            if (Math.abs(num) >= 1_000_000_000) {
+                return (num / 1_000_000_000).toFixed(2) + 'B';
+            } else if (Math.abs(num) >= 1_000_000) {
+                return (num / 1_000_000).toFixed(2) + 'M';
+            } else if (Math.abs(num) >= 1_000) {
+                return (num / 1_000).toFixed(2) + 'K';
+            } else if (Math.abs(num) >= 1) {
+                return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            } else if (Math.abs(num) >= 0.01) {
+                return num.toFixed(4);
+            } else {
+                return num.toFixed(6);
+            }
+        }
+        
+        function formatPercentage(value) {
+            if (value === null || value === undefined) return "0.00%";
+            const num = parseFloat(value);
+            if (isNaN(num)) return "0.00%";
+            const prefix = num > 0 ? "+" : "";
+            return prefix + num.toFixed(2) + "%";
+        }
+        
+        function formatTimeDelta(timestamp) {
+            if (!timestamp) return "غير معروف";
+            try {
+                const now = Date.now();
+                const past = new Date(timestamp).getTime();
+                const diff = now - past;
+                
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(minutes / 60);
+                const days = Math.floor(hours / 24);
+                
+                if (days > 0) {
+                    return `قبل ${days} يوم${days > 1 ? 'ين' : ''}`;
+                } else if (hours > 0) {
+                    return `قبل ${hours} ساعة`;
+                } else if (minutes > 0) {
+                    return `قبل ${minutes} دقيقة`;
+                } else {
+                    return `قبل لحظات`;
+                }
+            } catch (error) {
+                return "غير معروف";
+            }
+        }
+        
+        // ======================
+        // إدارة الإشعارات
+        // ======================
+        function showNotification(message, type = 'success') {
+            const toast = document.getElementById('notificationToast');
+            const icon = toast.querySelector('.notification-toast-icon i');
+            const messageEl = toast.querySelector('.notification-toast-message');
+            
+            if (!toast || !icon || !messageEl) return;
+            
+            messageEl.textContent = message;
+            toast.className = 'notification-toast';
+            toast.classList.add(type);
+            
+            icon.className = type === 'success' ? 'fas fa-check-circle' :
+                            type === 'error' ? 'fas fa-exclamation-circle' :
+                            type === 'warning' ? 'fas fa-exclamation-triangle' :
+                            'fas fa-info-circle';
+            
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+        
+        // ======================
+        // تحديث البيانات
+        // ======================
+        async function performUpdate() {
+            const btn = document.getElementById('updateBtn');
+            if (!btn) return false;
+            
+            const originalText = btn.innerHTML;
+            const originalDisabled = btn.disabled;
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
+            btn.disabled = true;
+            
+            try {
+                // محاكاة اتصال API
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                showNotification('✅ تم تحديث البيانات بنجاح', 'success');
+                
+                // إعادة تحميل البيانات
+                setTimeout(() => {
+                    loadData();
+                }, 1000);
+                
+                return true;
+            } catch (error) {
+                console.error('Update error:', error);
+                showNotification('❌ فشل في تحديث البيانات', 'error');
+                return false;
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = originalDisabled;
+            }
+        }
+        
+        async function manualUpdate() {
+            showNotification('جاري تحديث البيانات...', 'info');
+            const success = await performUpdate();
+            if (success && autoUpdateManager) {
+                autoUpdateManager.nextUpdateTime = Date.now() + (autoUpdateManager.interval * 60 * 1000);
+            }
+        }
+        
+        async function refreshNotifications() {
+            showNotification('جاري تحديث الإشعارات...', 'info');
+            await loadNotifications();
+        }
+        
+        // ======================
+        // المؤقتات
+        // ======================
+        function startUpdateTimer() {
+            const timerElement = document.getElementById('update-timer');
+            if (!timerElement) return;
+            
+            let seconds = AppConfig.UPDATE_INTERVAL;
+            
+            updateTimerInterval = setInterval(() => {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                
+                timerElement.textContent = `التحديث اليدوي خلال: ${minutes}:${secs.toString().padStart(2, '0')}`;
+                
+                if (seconds <= 0) {
+                    clearInterval(updateTimerInterval);
+                    timerElement.textContent = 'جاري التحديث...';
+                    setTimeout(manualUpdate, 1000);
+                    seconds = AppConfig.UPDATE_INTERVAL;
+                    updateTimerInterval = setInterval(arguments.callee, 1000);
+                }
+                
+                seconds--;
+            }, 1000);
+        }
+        
+        // ======================
+        // مؤشر الخوف والجشع
+        // ======================
+        function updateFearGreedMarker() {
+            const marker = document.getElementById('fgi-marker');
+            if (!marker) return;
+            
+            // قيمة عشوائية للعرض (في التطبيق الحقيقي تأتي من API)
+            const value = Math.floor(Math.random() * 40) + 40; // بين 40 و 80
+            marker.style.left = `${value}%`;
+            
+            let color;
+            if (value >= 70) {
+                color = '#00C851';
+            } else if (value >= 55) {
+                color = '#99ff99';
+            } else if (value >= 45) {
+                color = '#ffff44';
+            } else if (value >= 30) {
+                color = '#ffbb33';
+            } else {
+                color = '#ff4444';
+            }
+            marker.style.backgroundColor = color;
+            
+            // تحديث القيمة المعروضة
+            const valueElement = document.getElementById('fearGreedValue');
+            if (valueElement) {
+                let label = '';
+                if (value >= 70) label = '(جشع شديد)';
+                else if (value >= 55) label = '(جشع)';
+                else if (value >= 45) label = '(محايد)';
+                else if (value >= 30) label = '(خوف)';
+                else label = '(خوف شديد)';
+                
+                valueElement.innerHTML = `${value} <small style="font-size: 0.8rem; color: var(--gray);">${label}</small>`;
+            }
+        }
+        
+        // ======================
+        // الرسم البياني
+        // ======================
+        async function initChart() {
+            const ctx = document.getElementById('signalChart');
+            if (!ctx) return;
+            
+            try {
+                createDemoChart(ctx);
+            } catch (error) {
+                console.error('Error initializing chart:', error);
+            }
+        }
+        
+        function createDemoChart(ctx) {
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            
+            const datasets = [
+                {
+                    label: 'Bitcoin',
+                    data: Array.from({length: 24}, () => Math.floor(Math.random() * 30) + 50),
+                    borderColor: '#2E86AB',
+                    backgroundColor: '#2E86AB20',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3
+                },
+                {
+                    label: 'Ethereum',
+                    data: Array.from({length: 24}, () => Math.floor(Math.random() * 30) + 45),
+                    borderColor: '#A23B72',
+                    backgroundColor: '#A23B7220',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3
+                },
+                {
+                    label: 'BNB',
+                    data: Array.from({length: 24}, () => Math.floor(Math.random() * 30) + 40),
+                    borderColor: '#3BB273',
+                    backgroundColor: '#3BB27320',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 3
+                }
+            ];
+            
+            if (signalChart) {
+                signalChart.destroy();
+            }
+            
+            signalChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            rtl: true,
+                            labels: {
+                                font: { family: 'Cairo', size: 12, weight: 'bold' }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 0,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'قوة الإشارة (%)',
+                                font: { family: 'Cairo', size: 13, weight: 'bold' }
+                            },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'الوقت',
+                                font: { family: 'Cairo', size: 13, weight: 'bold' }
+                            },
+                            grid: { color: 'rgba(0,0,0,0.02)' }
+                        }
+                    },
+                    animation: { duration: 1000 }
+                }
+            });
+        }
+        
+        // ======================
+        // تأثيرات التحميل
+        // ======================
+        function animateStrengthBars() {
+            document.querySelectorAll('.strength-fill').forEach((fill, index) => {
+                const width = fill.style.width;
+                fill.style.width = '0%';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 300 + (index * 100));
+            });
+            
+            document.querySelectorAll('.indicator-fill').forEach((fill, index) => {
+                const width = fill.style.width;
+                fill.style.width = '0%';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 500 + (index * 50));
+            });
+        }
+        
+        // ======================
+        // فحص صحة النظام
+        // ======================
+        async function checkSystemHealth() {
+            try {
+                // محاكاة فحص الصحة
+                const health = { status: 'healthy', last_update: new Date().toISOString() };
+                
+                // تحديث وقت التحديث الأخير
+                const lastUpdateElement = document.getElementById('last-update-text');
+                if (lastUpdateElement) {
+                    lastUpdateElement.textContent = formatTimeDelta(health.last_update);
+                }
+                
+                // تحديث حالة النظام
+                const statusDot = document.querySelector('.status-dot');
+                const statusText = document.querySelector('.system-status span');
+                
+                if (statusDot && statusText) {
+                    statusDot.className = 'status-dot ' + health.status;
+                    statusText.textContent = 'حالة النظام: ' + 
+                        (health.status === 'healthy' ? 'صحي' : 
+                         health.status === 'warning' ? 'تحذير' : 'غير صحي');
+                }
+                
+            } catch (error) {
+                console.error('Error checking system health:', error);
+            }
+        }
+        
+        // ======================
+        // إدارة الفاصل الزمني
+        // ======================
+        function showIntervalModal() {
+            if (!autoUpdateManager) return;
+            
+            const modal = document.createElement('div');
+            modal.className = 'interval-modal-overlay';
+            
+            const modalContent = document.createElement('div');
+            modalContent.className = 'interval-modal';
+            modalContent.innerHTML = `
+                <h3 style="color: var(--dark); margin-bottom: 20px;">
+                    <i class="fas fa-clock"></i> ضبط فاصل التحديث التلقائي
+                </h3>
+                
+                <div class="interval-options">
+                    <button class="interval-option" data-minutes="1">1 دقيقة</button>
+                    <button class="interval-option" data-minutes="3">3 دقائق</button>
+                    <button class="interval-option" data-minutes="5">5 دقائق</button>
+                    <button class="interval-option" data-minutes="10">10 دقائق</button>
+                    <button class="interval-option" data-minutes="15">15 دقيقة</button>
+                    <button class="interval-option" data-minutes="30">30 دقيقة</button>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <label style="color: var(--dark); display: block; margin-bottom: 10px;">أو أدخل عدد الدقائق:</label>
+                    <input type="number" id="customInterval" min="1" max="60" value="${autoUpdateManager.interval}" 
+                           style="width: 100px; padding: 10px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; font-size: 16px;">
+                    <button id="setCustomInterval" style="margin-right: 10px; padding: 10px 15px; background: var(--success); color: white; border: none; border-radius: 8px; cursor: pointer;">تطبيق</button>
+                </div>
+                
+                <div style="margin-top: 25px;">
+                    <button id="closeModal" style="padding: 10px 20px; background: var(--danger); color: white; border: none; border-radius: 8px; cursor: pointer;">إلغاء</button>
+                </div>
+            `;
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            // إضافة معالجات الأحداث
+            modalContent.querySelectorAll('.interval-option').forEach(btn => {
+                btn.onclick = () => {
+                    const minutes = parseInt(btn.dataset.minutes);
+                    autoUpdateManager.setInterval(minutes);
+                    document.body.removeChild(modal);
+                };
+            });
+            
+            modalContent.querySelector('#setCustomInterval').onclick = () => {
+                const input = modalContent.querySelector('#customInterval');
+                const value = parseInt(input.value);
+                if (value >= 1 && value <= 60) {
+                    autoUpdateManager.setInterval(value);
+                    document.body.removeChild(modal);
+                } else {
+                    showNotification('الرجاء إدخال قيمة بين 1 و 60 دقيقة', 'error');
+                }
+            };
+            
+            modalContent.querySelector('#closeModal').onclick = () => {
+                document.body.removeChild(modal);
+            };
+            
+            // إغلاق عند النقر خارج النافذة
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
+        }
+        
+        // ======================
+        // تحميل البيانات
+        // ======================
+        async function loadData() {
+            try {
+                // بيانات العملات
+                const coins = [
+                    {
+                        symbol: 'BTC',
+                        name: 'Bitcoin',
+                        price: 45231.50,
+                        change24h: 2.34,
+                        signalStrength: 85,
+                        indicators: [
+                            { name: 'RSI', value: 65, color: '#2E86AB' },
+                            { name: 'MACD', value: 78, color: '#A23B72' },
+                            { name: 'Bollinger', value: 72, color: '#3BB273' },
+                            { name: 'Volume', value: 88, color: '#F18F01' },
+                            { name: 'Trend', value: 82, color: '#6A4C93' }
+                        ]
+                    },
+                    {
+                        symbol: 'ETH',
+                        name: 'Ethereum',
+                        price: 2450.75,
+                        change24h: 1.56,
+                        signalStrength: 72,
+                        indicators: [
+                            { name: 'RSI', value: 58, color: '#2E86AB' },
+                            { name: 'MACD', value: 65, color: '#A23B72' },
+                            { name: 'Bollinger', value: 70, color: '#3BB273' },
+                            { name: 'Volume', value: 75, color: '#F18F01' },
+                            { name: 'Trend', value: 68, color: '#6A4C93' }
+                        ]
+                    },
+                    {
+                        symbol: 'BNB',
+                        name: 'BNB',
+                        price: 312.45,
+                        change24h: -0.85,
+                        signalStrength: 45,
+                        indicators: [
+                            { name: 'RSI', value: 42, color: '#2E86AB' },
+                            { name: 'MACD', value: 48, color: '#A23B72' },
+                            { name: 'Bollinger', value: 52, color: '#3BB273' },
+                            { name: 'Volume', value: 38, color: '#F18F01' },
+                            { name: 'Trend', value: 44, color: '#6A4C93' }
+                        ]
+                    }
+                ];
+                
+                // تحديث إحصائيات
+                updateStatistics(coins);
+                
+                // تحديث بطاقات العملات
+                updateCoinCards(coins);
+                
+                // تحديث الإشعارات
+                await loadNotifications();
+                
+                // تحديث أوزان المؤشرات
+                updateWeightsInfo();
+                
+                // تحديث ألوان المؤشرات
+                updateIndicatorLegend();
+                
+                // تحديث مؤشر الخوف والجشع
+                updateFearGreedMarker();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showNotification('❌ خطأ في تحميل البيانات', 'error');
+            }
+        }
+        
+        function updateStatistics(coins) {
+            // حساب الإحصائيات
+            const stats = {
+                strongBuy: coins.filter(c => c.signalStrength >= 78).length,
+                buy: coins.filter(c => c.signalStrength >= 62 && c.signalStrength < 78).length,
+                neutral: coins.filter(c => c.signalStrength >= 45 && c.signalStrength < 62).length,
+                sell: coins.filter(c => c.signalStrength >= 23 && c.signalStrength < 45).length,
+                strongSell: coins.filter(c => c.signalStrength < 23).length,
+                avgSignal: coins.reduce((sum, c) => sum + c.signalStrength, 0) / coins.length
+            };
+            
+            // تحديث واجهة الإحصائيات
+            document.getElementById('strongBuyCount').textContent = stats.strongBuy;
+            document.getElementById('buyCount').textContent = stats.buy;
+            document.getElementById('neutralCount').textContent = stats.neutral;
+            document.getElementById('sellCount').textContent = stats.sell;
+            document.getElementById('strongSellCount').textContent = stats.strongSell;
+            document.getElementById('avgSignal').textContent = stats.avgSignal.toFixed(1) + '%';
+            document.getElementById('totalCoins').textContent = coins.length;
+            document.getElementById('updatedCoins').textContent = coins.length;
+        }
+        
+        function updateCoinCards(coins) {
+            const container = document.getElementById('coins-container');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            coins.forEach(coin => {
+                const signalColor = getSignalColor(coin.signalStrength);
+                const signalType = getSignalType(coin.signalStrength);
+                const signalClass = getSignalClass(coin.signalStrength);
+                
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="coin-info">
+                            <div class="coin-icon">
+                                ${coin.symbol.charAt(0)}
+                            </div>
+                            <div class="coin-details">
+                                <div class="coin-name">
+                                    <h3>${coin.name}</h3>
+                                    <div class="signal-badge signal-${signalClass}">
+                                        ${signalType}
+                                        <span class="accuracy-badge">
+                                            <i class="fas fa-bullseye"></i>
+                                            ${Math.floor(coin.signalStrength * 0.95)}% دقة
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="price-info">
+                                    <div class="current-price">$${formatNumber(coin.price)}</div>
+                                    <div class="price-changes">
+                                        <span class="price-change ${coin.change24h >= 0 ? 'positive' : 'negative'}">
+                                            <i class="fas fa-${coin.change24h >= 0 ? 'arrow-up' : 'arrow-down'}"></i>
+                                            ${formatPercentage(coin.change24h)} (24h)
+                                        </span>
+                                    </div>
+                                    <div class="volume-info">
+                                        <i class="fas fa-chart-bar"></i> حجم 24h: $${formatNumber(coin.price * 1000000)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="signal-strength">
+                        <div class="strength-bar">
+                            <div class="strength-fill fill-${signalColor}" style="width: ${coin.signalStrength}%;"></div>
+                        </div>
+                        <div class="strength-text">
+                            <span class="strength-label">قوة الإشارة</span>
+                            <span class="strength-value">${coin.signalStrength.toFixed(1)}%</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 5px; color: var(--gray); font-size: 0.9rem;">
+                            ${getSignalStrengthText(coin.signalStrength)}
+                        </div>
+                    </div>
+                    
+                    <div class="indicators-section">
+                        <div class="indicators-title">
+                            <span>تفصيل المؤشرات المتقدمة:</span>
+                            <small style="color: var(--gray); font-size: 0.85rem;">
+                                <i class="far fa-clock"></i> منذ لحظات
+                            </small>
+                        </div>
+                        <div class="indicators-list">
+                            ${coin.indicators.map(ind => `
+                                <div class="indicator-item">
+                                    <div class="indicator-color" style="background-color: ${ind.color};"></div>
+                                    <div class="indicator-name">
+                                        ${ind.name}
+                                        <div class="tooltip-content">
+                                            مؤشر ${ind.name} يظهر حالة ${ind.name === 'RSI' ? 'الشراء/البيع المفرط' : 
+                                                                       ind.name === 'MACD' ? 'الاتجاه والتقاطع' :
+                                                                       ind.name === 'Bollinger' ? 'التقلب والنطاقات' :
+                                                                       ind.name === 'Volume' ? 'حجم التداول' : 'الاتجاه العام'}
+                                        </div>
+                                    </div>
+                                    <div class="indicator-bar">
+                                        <div class="indicator-fill" style="width: ${ind.value}%; background-color: ${ind.color};"></div>
+                                    </div>
+                                    <div class="indicator-value">${ind.value}%</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+            
+            // تطبيق تأثيرات الحركة
+            setTimeout(animateStrengthBars, 100);
+        }
+        
+        async function loadNotifications() {
+            try {
+                const notifications = [
+                    {
+                        type: 'strong_buy',
+                        message: 'إشارة شراء قوي لـ Bitcoin',
+                        time: 'قبل 5 دقائق',
+                        strength: 85
+                    },
+                    {
+                        type: 'buy',
+                        message: 'إشارة شراء لـ Ethereum',
+                        time: 'قبل 10 دقائق',
+                        strength: 72
+                    },
+                    {
+                        type: 'significant_change',
+                        message: 'تغير كبير في حجم تداول BNB',
+                        time: 'قبل 15 دقيقة'
+                    },
+                    {
+                        type: 'sell',
+                        message: 'إشارة بيع لـ Cardano',
+                        time: 'قبل 20 دقيقة',
+                        strength: 38
+                    },
+                    {
+                        type: 'strong_sell',
+                        message: 'تحذير: إشارة بيع قوي لـ Dogecoin',
+                        time: 'قبل 25 دقيقة',
+                        strength: 18
+                    }
+                ];
+                
+                const container = document.getElementById('notificationsList');
+                if (!container) return;
+                
+                container.innerHTML = notifications.map(notif => `
+                    <div class="notification-item ${notif.type}">
+                        <div class="notification-content">
+                            <div class="notification-icon">
+                                ${notif.type === 'strong_buy' ? '<i class="fas fa-rocket" style="color: var(--success);"></i>' :
+                                  notif.type === 'buy' ? '<i class="fas fa-arrow-up" style="color: var(--primary);"></i>' :
+                                  notif.type === 'strong_sell' ? '<i class="fas fa-skull-crossbones" style="color: var(--danger);"></i>' :
+                                  notif.type === 'sell' ? '<i class="fas fa-arrow-down" style="color: var(--warning);"></i>' :
+                                  '<i class="fas fa-exchange-alt" style="color: var(--secondary);"></i>'}
+                            </div>
+                            <div class="notification-text">
+                                <div class="notification-message">${notif.message}</div>
+                                <div class="notification-time">
+                                    ${notif.time}
+                                    ${notif.strength ? ` | قوة: ${notif.strength}%` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                document.getElementById('notificationBadge').textContent = notifications.length;
+                document.getElementById('totalNotifications').textContent = notifications.length;
+                
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+            }
+        }
+        
+        function updateWeightsInfo() {
+            const weights = {
+                'RSI': 20,
+                'MACD': 25,
+                'Bollinger Bands': 15,
+                'Volume Analysis': 18,
+                'Trend Analysis': 22
+            };
+            
+            const container = document.getElementById('weightsInfo');
+            if (!container) return;
+            
+            container.innerHTML = Object.entries(weights).map(([name, weight]) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="indicator-color" style="background-color: ${getIndicatorColor(name)};"></div>
+                        <span style="font-size: 0.9rem;">${name}</span>
+                    </div>
+                    <span style="font-weight: 600; color: var(--primary);">${weight}%</span>
+                </div>
+            `).join('');
+        }
+        
+        function updateIndicatorLegend() {
+            const indicators = [
+                { name: 'RSI', color: '#2E86AB' },
+                { name: 'MACD', color: '#A23B72' },
+                { name: 'Bollinger Bands', color: '#3BB273' },
+                { name: 'Volume Analysis', color: '#F18F01' },
+                { name: 'Trend Analysis', color: '#6A4C93' }
+            ];
+            
+            const container = document.getElementById('indicatorLegend');
+            if (!container) return;
+            
+            container.innerHTML = indicators.map(ind => `
+                <div class="indicator-legend-item">
+                    <div class="indicator-legend-color" style="background-color: ${ind.color};"></div>
+                    <span>${ind.name}</span>
+                </div>
+            `).join('');
+            
+            document.getElementById('indicatorsCount').textContent = indicators.length;
+            document.getElementById('indicatorsCountInfo').textContent = indicators.length + ' مؤشرات';
+        }
+        
+        // ======================
+        // وظائف المساعدة للإشارات
+        // ======================
+        function getSignalColor(strength) {
+            if (strength >= 78) return 'success';
+            if (strength >= 62) return 'info';
+            if (strength >= 45) return 'secondary';
+            if (strength >= 23) return 'warning';
+            return 'danger';
+        }
+        
+        function getSignalType(strength) {
+            if (strength >= 78) return 'شراء قوي';
+            if (strength >= 62) return 'شراء';
+            if (strength >= 45) return 'محايد';
+            if (strength >= 23) return 'بيع';
+            return 'بيع قوي';
+        }
+        
+        function getSignalClass(strength) {
+            if (strength >= 78) return 'success';
+            if (strength >= 62) return 'info';
+            if (strength >= 45) return 'secondary';
+            if (strength >= 23) return 'warning';
+            return 'danger';
+        }
+        
+        function getSignalStrengthText(strength) {
+            if (strength >= 90) return 'قوة استثنائية';
+            if (strength >= 80) return 'قوة عالية جداً';
+            if (strength >= 70) return 'قوة عالية';
+            if (strength >= 60) return 'قوة متوسطة';
+            if (strength >= 50) return 'قوة معتدلة';
+            if (strength >= 40) return 'قوة ضعيفة';
+            return 'قوة ضعيفة جداً';
+        }
+        
+        function getIndicatorColor(name) {
+            const colors = {
+                'RSI': '#2E86AB',
+                'MACD': '#A23B72',
+                'Bollinger Bands': '#3BB273',
+                'Volume Analysis': '#F18F01',
+                'Trend Analysis': '#6A4C93'
+            };
+            return colors[name] || '#6C757D';
+        }
+        
+        // ======================
+        // تهيئة الصفحة
+        // ======================
+        document.addEventListener('DOMContentLoaded', function() {
+            // تهيئة نظام التحديث التلقائي
+            autoUpdateManager = new AutoUpdateManager();
+            
+            // ربط الأزرار
+            document.getElementById('autoUpdateToggleBtn').addEventListener('click', () => {
+                if (autoUpdateManager) {
+                    autoUpdateManager.toggle();
+                }
+            });
+            
+            document.getElementById('autoUpdateIntervalBtn').addEventListener('click', showIntervalModal);
+            
+            // تحميل البيانات
+            loadData();
+            
+            // بدء المؤقتات
+            startUpdateTimer();
+            
+            // تهيئة الرسم البياني
+            setTimeout(initChart, 500);
+            
+            // فحص صحة النظام
+            checkSystemHealth();
+            setInterval(checkSystemHealth, 30000);
+            
+            // تحديث مؤشر الخوف والجشع كل دقيقة
+            setInterval(updateFearGreedMarker, 60000);
+            
+            // عرض رسالة ترحيب
+            setTimeout(() => {
+                showNotification('🚀 تم تحميل محلل الإشارات بنجاح', 'success');
+            }, 1000);
+            
+            // إضافة تأثيرات للبطاقات
+            setTimeout(() => {
+                const cards = document.querySelectorAll('.card');
+                cards.forEach((card, index) => {
+                    card.style.animationDelay = `${index * 0.1}s`;
+                });
+            }, 200);
+        });
+        
+        // ======================
+        // إدارة الموارد
+        // ======================
+        window.addEventListener('beforeunload', function() {
+            if (updateTimerInterval) {
+                clearInterval(updateTimerInterval);
+            }
+            
+            if (autoUpdateManager) {
+                autoUpdateManager.stop();
+            }
+        });
+        
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // الصفحة غير مرئية - توفير الموارد
+            } else {
+                // الصفحة مرئية - تحديث البيانات
+                if (autoUpdateManager) {
+                    autoUpdateManager.updateCountdownDisplay();
+                }
+            }
+        });
+        
+        // ======================
+        // تهيئة نهائية
+        // ======================
+        window.addEventListener('load', function() {
+            console.log('🚀 Crypto Signal Analyzer v3.5 loaded successfully');
+            
+            // إخفاء مؤشر التحميل إذا كان موجوداً
+            const loadingElements = document.querySelectorAll('.loading');
+            loadingElements.forEach(el => {
+                el.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>

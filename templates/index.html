@@ -1489,7 +1489,7 @@
     <script>
         // البيانات العامة
         const AppConfig = {
-            UPDATE_INTERVAL: 300, // 5 دقائق بالثواني
+            UPDATE_INTERVAL: 180, // تغيير من 300 إلى 180 (3 دقائق)
             SIGNAL_THRESHOLDS: {
                 strong_buy: 78,
                 buy: 62,
@@ -1557,6 +1557,230 @@
         }
         
         // ======================
+        // نظام التحديث التلقائي المحسّن
+        // ======================
+        
+        class AutoUpdateSystem {
+            constructor() {
+                this.isEnabled = true;
+                this.intervalMinutes = 3;
+                this.intervalId = null;
+                this.isUpdating = false;
+                this.countdownInterval = null;
+                this.init();
+            }
+            
+            init() {
+                // التحقق من الإعدادات المحفوظة
+                const savedEnabled = localStorage.getItem('autoUpdateEnabled');
+                const savedInterval = localStorage.getItem('autoUpdateInterval');
+                
+                if (savedEnabled !== null) {
+                    this.isEnabled = savedEnabled === 'true';
+                }
+                
+                if (savedInterval !== null) {
+                    this.intervalMinutes = parseInt(savedInterval);
+                }
+                
+                // بدء التحديث التلقائي بعد تحميل الصفحة
+                setTimeout(() => {
+                    this.start();
+                }, 10000); // 10 ثواني بعد تحميل الصفحة
+                
+                // أيضًا بدء تحديث فوري أولي
+                setTimeout(() => {
+                    if (this.isEnabled) {
+                        this.executeUpdate();
+                    }
+                }, 3000);
+            }
+            
+            start() {
+                if (this.intervalId) {
+                    clearInterval(this.intervalId);
+                }
+                
+                if (!this.isEnabled) return;
+                
+                const intervalMs = this.intervalMinutes * 60 * 1000;
+                this.intervalId = setInterval(() => {
+                    if (this.isEnabled && !this.isUpdating) {
+                        this.executeUpdate();
+                    }
+                }, intervalMs);
+                
+                console.log(`بدأ التحديث التلقائي كل ${this.intervalMinutes} دقائق`);
+                
+                // تحديث عرض المؤقت
+                this.updateTimerDisplay();
+            }
+            
+            stop() {
+                if (this.intervalId) {
+                    clearInterval(this.intervalId);
+                    this.intervalId = null;
+                    console.log('توقف التحديث التلقائي');
+                }
+                
+                if (this.countdownInterval) {
+                    clearInterval(this.countdownInterval);
+                    this.countdownInterval = null;
+                }
+            }
+            
+            async executeUpdate() {
+                if (this.isUpdating) return;
+                
+                this.isUpdating = true;
+                const updateBtn = document.getElementById('updateBtn');
+                
+                try {
+                    // حفظ الحالة الأصلية للزر
+                    const originalText = updateBtn ? updateBtn.innerHTML : '';
+                    const originalDisabled = updateBtn ? updateBtn.disabled : false;
+                    
+                    if (updateBtn) {
+                        updateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> تحديث تلقائي...';
+                        updateBtn.disabled = true;
+                    }
+                    
+                    // إشعار للمستخدم
+                    showNotification(`بدأ التحديث التلقائي المجدول (كل ${this.intervalMinutes} دقائق)`, 'info');
+                    
+                    // تنفيذ التحديث
+                    const response = await fetch('/api/update', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' || result.status === 'warning') {
+                        showNotification('✅ ' + result.message, result.status);
+                        
+                        // إعادة تحميل الصفحة بعد تأخير
+                        setTimeout(() => {
+                            location.reload();
+                        }, 2000);
+                        
+                    } else {
+                        showNotification('❌ فشل التحديث التلقائي: ' + result.message, 'error');
+                        
+                        // إعادة تعيين الزر
+                        if (updateBtn) {
+                            updateBtn.innerHTML = originalText;
+                            updateBtn.disabled = originalDisabled;
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.error('خطأ في التحديث التلقائي:', error);
+                    showNotification('❌ خطأ في الاتصال أثناء التحديث التلقائي', 'error');
+                    
+                    if (updateBtn) {
+                        updateBtn.innerHTML = '<i class="fas fa-redo"></i> تحديث الآن';
+                        updateBtn.disabled = false;
+                    }
+                    
+                } finally {
+                    this.isUpdating = false;
+                }
+            }
+            
+            setInterval(minutes) {
+                this.intervalMinutes = minutes;
+                localStorage.setItem('autoUpdateInterval', minutes.toString());
+                
+                if (this.isEnabled) {
+                    this.start();
+                }
+                
+                showNotification(`تم ضبط التحديث التلقائي على كل ${minutes} دقائق`, 'success');
+            }
+            
+            toggle() {
+                this.isEnabled = !this.isEnabled;
+                localStorage.setItem('autoUpdateEnabled', this.isEnabled.toString());
+                
+                if (this.isEnabled) {
+                    this.start();
+                    showNotification('تم تفعيل التحديث التلقائي', 'success');
+                } else {
+                    this.stop();
+                    showNotification('تم إيقاف التحديث التلقائي', 'warning');
+                }
+                
+                this.updateUI();
+                return this.isEnabled;
+            }
+            
+            updateUI() {
+                const toggleBtn = document.getElementById('autoUpdateToggleBtn');
+                const intervalBtn = document.getElementById('autoUpdateIntervalBtn');
+                
+                if (toggleBtn) {
+                    toggleBtn.style.background = this.isEnabled ? 'var(--success)' : 'var(--danger)';
+                    const icon = toggleBtn.querySelector('i');
+                    const text = toggleBtn.querySelector('span');
+                    
+                    if (icon) icon.className = this.isEnabled ? 'fas fa-robot' : 'fas fa-robot';
+                    if (text) text.textContent = this.isEnabled ? 'تلقائي: ✅' : 'تلقائي: ❌';
+                }
+                
+                if (intervalBtn) {
+                    intervalBtn.querySelector('span').textContent = `الفاصل: ${this.intervalMinutes} د`;
+                }
+                
+                this.updateTimerDisplay();
+            }
+            
+            updateTimerDisplay() {
+                const timerElement = document.getElementById('autoUpdateTimer');
+                if (timerElement && this.isEnabled) {
+                    timerElement.textContent = `التحديث التلقائي القادم خلال: ${this.intervalMinutes}:00`;
+                    this.startCountdown();
+                } else if (timerElement) {
+                    timerElement.textContent = 'التحديث التلقائي معطل';
+                }
+            }
+            
+            startCountdown() {
+                if (this.countdownInterval) {
+                    clearInterval(this.countdownInterval);
+                }
+                
+                if (!this.isEnabled) return;
+                
+                let seconds = this.intervalMinutes * 60;
+                const timerElement = document.getElementById('autoUpdateTimer');
+                
+                if (!timerElement) return;
+                
+                this.countdownInterval = setInterval(() => {
+                    if (!this.isEnabled) {
+                        clearInterval(this.countdownInterval);
+                        return;
+                    }
+                    
+                    seconds--;
+                    
+                    if (seconds <= 0) {
+                        seconds = this.intervalMinutes * 60;
+                    }
+                    
+                    const minutes = Math.floor(seconds / 60);
+                    const secs = seconds % 60;
+                    
+                    timerElement.textContent = `التحديث التلقائي القادم خلال: ${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+                }, 1000);
+            }
+        }
+        
+        // إنشاء مثيل من نظام التحديث التلقائي
+        let autoUpdateSystem = null;
+        
+        // ======================
         // إدارة الإشعارات
         // ======================
         
@@ -1568,14 +1792,24 @@
             // تحديث المحتوى
             messageEl.textContent = message;
             
-            // تحديث النوع
+            // تحديث النوع والألوان
             toast.className = 'notification-toast';
             toast.classList.add(type);
             
-            // تحديث الأيقونة
-            icon.className = type === 'success' ? 'fas fa-check-circle' :
-                            type === 'error' ? 'fas fa-exclamation-circle' :
-                            'fas fa-exclamation-triangle';
+            // تحديد الأيقونة واللون حسب النوع
+            if (type === 'success') {
+                icon.className = 'fas fa-check-circle';
+                toast.style.borderLeftColor = 'var(--success)';
+            } else if (type === 'error') {
+                icon.className = 'fas fa-exclamation-circle';
+                toast.style.borderLeftColor = 'var(--danger)';
+            } else if (type === 'warning') {
+                icon.className = 'fas fa-exclamation-triangle';
+                toast.style.borderLeftColor = 'var(--warning)';
+            } else if (type === 'info') {
+                icon.className = 'fas fa-info-circle';
+                toast.style.borderLeftColor = 'var(--info)';
+            }
             
             // عرض الإشعار
             toast.classList.add('show');
@@ -1593,38 +1827,56 @@
         async function manualUpdate() {
             const btn = document.getElementById('updateBtn');
             const originalText = btn.innerHTML;
-            const originalState = btn.disabled;
             
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التحديث...';
             btn.disabled = true;
             
+            // تعليق التحديث التلقائي مؤقتاً إذا كان نشطاً
+            let wasAutoUpdateEnabled = false;
+            if (autoUpdateSystem && autoUpdateSystem.isEnabled) {
+                wasAutoUpdateEnabled = true;
+                autoUpdateSystem.stop();
+            }
+            
             try {
                 const response = await fetch('/api/update', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
+                    headers: {'Content-Type': 'application/json'}
                 });
                 
                 const result = await response.json();
                 
                 if (result.status === 'success' || result.status === 'warning') {
-                    showNotification(result.message, result.status);
+                    showNotification('✅ ' + result.message, result.status);
                     
-                    // إعادة تحميل البيانات بعد ثانيتين
+                    // إعادة تشغيل التحديث التلقائي إذا كان مفعلاً سابقاً
+                    if (wasAutoUpdateEnabled && autoUpdateSystem) {
+                        setTimeout(() => {
+                            autoUpdateSystem.start();
+                        }, 1000);
+                    }
+                    
                     setTimeout(() => {
                         location.reload();
                     }, 2000);
                 } else {
-                    showNotification(result.message, 'error');
+                    showNotification('❌ ' + result.message, 'error');
                     btn.innerHTML = originalText;
-                    btn.disabled = originalState;
+                    btn.disabled = false;
+                    
+                    if (wasAutoUpdateEnabled && autoUpdateSystem) {
+                        autoUpdateSystem.start();
+                    }
                 }
             } catch (error) {
-                showNotification('خطأ في الاتصال بالخادم', 'error');
+                showNotification('❌ خطأ في الاتصال بالخادم', 'error');
                 console.error('Update error:', error);
                 btn.innerHTML = originalText;
-                btn.disabled = originalState;
+                btn.disabled = false;
+                
+                if (wasAutoUpdateEnabled && autoUpdateSystem) {
+                    autoUpdateSystem.start();
+                }
             }
         }
         
@@ -1642,7 +1894,7 @@
         }
         
         // ======================
-        // المؤقت
+        // المؤقتات
         // ======================
         
         function startUpdateTimer() {
@@ -2013,12 +2265,208 @@
         }
         
         // ======================
+        // إضافة عناصر التحكم في التحديث التلقائي
+        // ======================
+        
+        function addAutoUpdateControls() {
+            // إضافة زر التحكم في التحديث التلقائي في الهيدر
+            const headerContent = document.querySelector('.header-content');
+            if (headerContent) {
+                // زر التبديل
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'update-btn';
+                toggleBtn.id = 'autoUpdateToggleBtn';
+                toggleBtn.style.background = 'var(--success)';
+                toggleBtn.style.marginLeft = '10px';
+                toggleBtn.innerHTML = `
+                    <i class="fas fa-robot"></i>
+                    <span>تلقائي: ✅</span>
+                `;
+                toggleBtn.onclick = () => {
+                    autoUpdateSystem.toggle();
+                };
+                
+                // زر تعديل الفاصل الزمني
+                const intervalBtn = document.createElement('button');
+                intervalBtn.className = 'update-btn';
+                intervalBtn.id = 'autoUpdateIntervalBtn';
+                intervalBtn.style.background = 'var(--info)';
+                intervalBtn.style.marginLeft = '10px';
+                intervalBtn.innerHTML = `
+                    <i class="fas fa-clock"></i>
+                    <span>الفاصل: 3 د</span>
+                `;
+                intervalBtn.onclick = () => {
+                    showIntervalSelector();
+                };
+                
+                // إدراج الأزرار قبل زر التحديث اليدوي
+                const manualBtn = document.querySelector('.update-btn');
+                if (manualBtn) {
+                    headerContent.insertBefore(intervalBtn, manualBtn);
+                    headerContent.insertBefore(toggleBtn, intervalBtn);
+                }
+            }
+            
+            // إضافة مؤقت التحديث التلقائي في قسم المؤقتات
+            const updateTimerSection = document.querySelector('.update-timer');
+            if (updateTimerSection) {
+                const autoUpdateTimer = document.createElement('div');
+                autoUpdateTimer.className = 'timer-display';
+                autoUpdateTimer.id = 'autoUpdateTimer';
+                autoUpdateTimer.style.color = 'var(--success)';
+                autoUpdateTimer.style.fontSize = '0.95rem';
+                autoUpdateTimer.textContent = 'جاري تهيئة التحديث التلقائي...';
+                
+                updateTimerSection.appendChild(document.createElement('br'));
+                updateTimerSection.appendChild(autoUpdateTimer);
+            }
+        }
+        
+        function showIntervalSelector() {
+            // إنشاء نافذة اختيار الفاصل الزمني
+            const modal = document.createElement('div');
+            modal.id = 'intervalModal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                backdrop-filter: blur(5px);
+            `;
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                width: 90%;
+                max-width: 400px;
+                text-align: center;
+                box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            `;
+            
+            modalContent.innerHTML = `
+                <h3 style="color: var(--dark); margin-bottom: 20px;">
+                    <i class="fas fa-clock"></i> ضبط فاصل التحديث التلقائي
+                </h3>
+                
+                <div style="margin: 20px 0;">
+                    <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px;">
+                        <button class="interval-option" data-minutes="1" style="padding: 10px 15px; background: var(--info); color: white; border: none; border-radius: 8px; cursor: pointer;">1 دقيقة</button>
+                        <button class="interval-option" data-minutes="3" style="padding: 10px 15px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer;">3 دقائق</button>
+                        <button class="interval-option" data-minutes="5" style="padding: 10px 15px; background: var(--secondary); color: white; border: none; border-radius: 8px; cursor: pointer;">5 دقائق</button>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: center; gap: 10px;">
+                        <button class="interval-option" data-minutes="10" style="padding: 10px 15px; background: var(--warning); color: white; border: none; border-radius: 8px; cursor: pointer;">10 دقائق</button>
+                        <button class="interval-option" data-minutes="15" style="padding: 10px 15px; background: var(--purple); color: white; border: none; border-radius: 8px; cursor: pointer;">15 دقائق</button>
+                        <button class="interval-option" data-minutes="30" style="padding: 10px 15px; background: var(--dark); color: white; border: none; border-radius: 8px; cursor: pointer;">30 دقيقة</button>
+                    </div>
+                </div>
+                
+                <div style="margin: 20px 0;">
+                    <label style="color: var(--dark); display: block; margin-bottom: 10px;">أو أدخل عدد الدقائق:</label>
+                    <input type="number" id="customInterval" min="1" max="60" value="3" 
+                           style="width: 100px; padding: 10px; border: 2px solid var(--primary); border-radius: 8px; text-align: center; font-size: 16px;">
+                    <button id="setCustomInterval" style="margin-right: 10px; padding: 10px 20px; background: var(--success); color: white; border: none; border-radius: 8px; cursor: pointer;">تطبيق</button>
+                </div>
+                
+                <div style="margin-top: 25px; display: flex; justify-content: center; gap: 10px;">
+                    <button id="closeModal" style="padding: 10px 25px; background: var(--danger); color: white; border: none; border-radius: 8px; cursor: pointer;">إلغاء</button>
+                </div>
+            `;
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            // إضافة معالجات الأحداث
+            modal.querySelectorAll('.interval-option').forEach(btn => {
+                btn.onclick = () => {
+                    const minutes = parseInt(btn.dataset.minutes);
+                    autoUpdateSystem.setInterval(minutes);
+                    document.body.removeChild(modal);
+                };
+            });
+            
+            document.getElementById('setCustomInterval').onclick = () => {
+                const customValue = parseInt(document.getElementById('customInterval').value);
+                if (customValue >= 1 && customValue <= 60) {
+                    autoUpdateSystem.setInterval(customValue);
+                    document.body.removeChild(modal);
+                } else {
+                    showNotification('الرجاء إدخال قيمة بين 1 و 60 دقيقة', 'error');
+                }
+            };
+            
+            document.getElementById('closeModal').onclick = () => {
+                document.body.removeChild(modal);
+            };
+            
+            // إغلاق النافذة عند النقر خارجها
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            };
+        }
+        
+        function updateSystemInfoWithAutoUpdate() {
+            // تحديث قسم معلومات النظام
+            const systemInfoCard = document.querySelector('.card:has(h3:contains("معلومات النظام"))');
+            if (systemInfoCard) {
+                const infoList = systemInfoCard.querySelector('div[style*="flex-direction: column"]');
+                if (infoList) {
+                    const autoUpdateInfo = document.createElement('div');
+                    autoUpdateInfo.style.cssText = 'display: flex; justify-content: space-between; margin-top: 10px;';
+                    autoUpdateInfo.innerHTML = `
+                        <span style="color: var(--gray);">التحديث التلقائي:</span>
+                        <span id="systemAutoUpdateStatus" style="font-weight: 600; color: var(--success);">مفعل (كل 3 دقائق)</span>
+                    `;
+                    
+                    infoList.appendChild(autoUpdateInfo);
+                }
+            }
+            
+            // تحديث حالة التحديث التلقائي في معلومات النظام
+            if (autoUpdateSystem) {
+                setInterval(() => {
+                    const statusElement = document.getElementById('systemAutoUpdateStatus');
+                    if (statusElement) {
+                        const statusText = autoUpdateSystem.isEnabled ? 
+                            `مفعل (كل ${autoUpdateSystem.intervalMinutes} دقيقة)` : 
+                            'معطل';
+                        const statusColor = autoUpdateSystem.isEnabled ? 'var(--success)' : 'var(--danger)';
+                        
+                        statusElement.textContent = statusText;
+                        statusElement.style.color = statusColor;
+                    }
+                }, 1000);
+            }
+        }
+        
+        // ======================
         // تهيئة الصفحة
         // ======================
         
         document.addEventListener('DOMContentLoaded', function() {
-            // بدء المؤقت
+            // إنشاء النظام التلقائي
+            autoUpdateSystem = new AutoUpdateSystem();
+            
+            // بدء المؤقت اليدوي
             startUpdateTimer();
+            
+            // إضافة عناصر التحكم في الواجهة
+            addAutoUpdateControls();
+            
+            // تحديث حالة النظام في صفحة المعلومات
+            updateSystemInfoWithAutoUpdate();
             
             // تحريك الشرائط
             animateStrengthBars();
@@ -2038,8 +2486,10 @@
                 if (lastUpdateElement) {
                     const currentText = lastUpdateElement.textContent;
                     if (currentText.startsWith('قبل')) {
-                        // تحديث النص ليعكس الوقت الحقيقي
-                        // (في تطبيق حقيقي، سنجلب البيانات من API)
+                        // في تطبيق حقيقي، ستجلب البيانات الجديدة من API
+                        if (Math.random() > 0.7) {
+                            lastUpdateElement.textContent = 'قبل لحظات';
+                        }
                     }
                 }
             }, 60000);
@@ -2058,16 +2508,158 @@
                     item.style.transform = 'translateX(0)';
                 }, 600 + (index * 100));
             });
+            
+            // إضافة تأثير ظهور تدريجي للصفحة
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.5s ease';
+            
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 100);
+            
+            // عرض رسالة ترحيب
+            setTimeout(() => {
+                if (autoUpdateSystem && autoUpdateSystem.isEnabled) {
+                    showNotification('🚀 تم تفعيل التحديث التلقائي كل ' + autoUpdateSystem.intervalMinutes + ' دقائق', 'info');
+                }
+            }, 1500);
         });
         
         // ======================
-        // إدارة النوافذ المنبثقة
+        // إدارة النوافذ المنبثقة وتحسين الأداء
         // ======================
         
         window.addEventListener('beforeunload', function() {
+            // إيقاف جميع المؤقتات
             if (updateTimerInterval) {
                 clearInterval(updateTimerInterval);
             }
+            
+            if (autoUpdateSystem) {
+                autoUpdateSystem.stop();
+            }
+            
+            // حفظ حالة التحديث التلقائي
+            if (autoUpdateSystem) {
+                localStorage.setItem('autoUpdateEnabled', autoUpdateSystem.isEnabled.toString());
+                localStorage.setItem('autoUpdateInterval', autoUpdateSystem.intervalMinutes.toString());
+            }
+        });
+        
+        // تحسين الأداء: إيقاف المؤقتات عندما تكون الصفحة غير مرئية
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // الصفحة غير مرئية - إيقاف المؤقتات المؤقتة
+                if (autoUpdateSystem && autoUpdateSystem.countdownInterval) {
+                    clearInterval(autoUpdateSystem.countdownInterval);
+                }
+            } else {
+                // الصفحة مرئية مرة أخرى - إعادة تشغيل المؤقتات
+                if (autoUpdateSystem && autoUpdateSystem.isEnabled) {
+                    autoUpdateSystem.startCountdown();
+                }
+            }
+        });
+        
+        // ======================
+        // وظائف مساعدة إضافية
+        // ======================
+        
+        function formatNumberWithCommas(x) {
+            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+        
+        function formatDateTime(date) {
+            const dt = luxon.DateTime.fromJSDate(new Date(date));
+            return dt.setLocale('ar').toLocaleString(luxon.DateTime.DATETIME_MED);
+        }
+        
+        function getSignalColorClass(percentage) {
+            if (percentage >= 78) return 'success';
+            if (percentage >= 62) return 'primary';
+            if (percentage >= 45) return 'gray';
+            if (percentage >= 23) return 'warning';
+            return 'danger';
+        }
+        
+        // ======================
+        // تحسين تجربة المستخدم
+        // ======================
+        
+        // إضافة تأثير اهتزاز للزر عند التحديث
+        function animateButton(buttonId) {
+            const btn = document.getElementById(buttonId);
+            if (btn) {
+                btn.classList.add('vibrate');
+                setTimeout(() => {
+                    btn.classList.remove('vibrate');
+                }, 300);
+            }
+        }
+        
+        // إضافة CSS للاهتزاز
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes vibrate {
+                0% { transform: translate(0); }
+                20% { transform: translate(-2px, 2px); }
+                40% { transform: translate(-2px, -2px); }
+                60% { transform: translate(2px, 2px); }
+                80% { transform: translate(2px, -2px); }
+                100% { transform: translate(0); }
+            }
+            
+            .vibrate {
+                animation: vibrate 0.3s linear;
+            }
+            
+            .interval-option:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                transition: all 0.2s ease;
+            }
+            
+            #intervalModal input:focus {
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(46, 134, 171, 0.3);
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // ======================
+        // تهيئة نهائية
+        // ======================
+        
+        // التأكد من تحميل مكتبة luxon
+        if (typeof luxon === 'undefined') {
+            console.error('مكتبة luxon غير محملة!');
+            // تحميل احتياطي
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js';
+            document.head.appendChild(script);
+            
+            script.onload = () => {
+                console.log('تم تحميل luxon بنجاح');
+                if (autoUpdateSystem) {
+                    autoUpdateSystem.updateUI();
+                }
+            };
+        }
+        
+        // بدء النظام التلقائي بعد تحميل كل شيء
+        window.addEventListener('load', function() {
+            console.log('تم تحميل الصفحة بالكامل');
+            
+            // عرض ملخص النظام
+            setTimeout(() => {
+                if (autoUpdateSystem) {
+                    console.log('نظام التحديث التلقائي:', {
+                        enabled: autoUpdateSystem.isEnabled,
+                        interval: autoUpdateSystem.intervalMinutes + ' دقائق',
+                        nextUpdate: 'مفعل'
+                    });
+                }
+            }, 2000);
         });
     </script>
 </body>

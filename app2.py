@@ -1293,6 +1293,36 @@ class NotificationManager:
     
         logger.info(f"Test Results: Connection={test1}, Simple={test2}, Emoji={test3}")
         return all([test1, test2, test3])
+
+    def check_and_send_heartbeat(self):
+        """إرسال نبضات النظام"""
+        try:
+            now = datetime.now()
+        
+            # التحقق من إرسال النبضات كل ساعتين
+            if (self.last_heartbeat is None or 
+                (now - self.last_heartbeat).total_seconds() >= self.heartbeat_interval):
+            
+                heartbeat_message = (
+                    f"💓 System Heartbeat\n"
+                    f"📊 Crypto Bot v3.5.1\n"
+                    f"🔄 Running normally\n"
+                    f"⏰ Last update: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"🪙 Tracking {len(AppConfig.COINS)} coins"
+                )
+            
+                success = self.send_ntfy_notification(heartbeat_message, "heartbeat", "low")
+            
+                if success:
+                    self.last_heartbeat = now
+                    logger.info("✅ تم إرسال نبضة النظام")
+            
+                return success
+            return True
+        
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال نبضة النظام: {e}")
+            return False
     
     def test_ntfy_connection(self):  # ← هذا السطر 1278
         """اختبار اتصال NTFY عند بدء التشغيل"""
@@ -1657,7 +1687,10 @@ class SignalManager:
     def update_all_signals(self) -> bool:
         """تحديث جميع الإشارات"""
         with self.update_lock:
-            logger.info("بدء تحديث جميع الإشارات...")
+            logger.info("=" * 50)
+            logger.info("🔄 بدء التحديث التلقائي للإشارات...")
+            logger.info(f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info("=" * 50)
             
             try:
                 # تحديث مؤشر الخوف والجشع
@@ -2234,15 +2267,13 @@ def get_history():
 
 def background_updater():
     """تحديث البيانات في الخلفية وإرسال النبضات"""
-    notification_manager = signal_manager.notification_manager
-    
     while True:
         try:
             # تحديث الإشارات
             signal_manager.update_all_signals()
             
-            # التحقق من إرسال النبضات كل ساعتين
-            notification_manager.check_and_send_heartbeat()
+            # إرسال نبضات النظام كل ساعتين
+            signal_manager.notification_manager.check_and_send_heartbeat()
             
             # الانتظار حتى التحديث التالي
             time.sleep(AppConfig.UPDATE_INTERVAL)
@@ -2250,7 +2281,7 @@ def background_updater():
         except Exception as e:
             logger.error(f"خطأ في التحديث التلقائي: {e}")
             time.sleep(60)  # انتظار دقيقة ثم إعادة المحاولة
-
+            
 # ======================
 # تشغيل التطبيق
 # ======================

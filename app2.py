@@ -141,13 +141,13 @@ class AppConfig:
     
     # أوزان المؤشرات المحسنة
     INDICATOR_WEIGHTS = {
-        IndicatorType.TREND_STRENGTH.value: 0.18,
-        IndicatorType.MOMENTUM.value: 0.18,
-        IndicatorType.VOLUME_ANALYSIS.value: 0.14,
-        IndicatorType.VOLATILITY.value: 0.14,
-        IndicatorType.MARKET_SENTIMENT.value: 0.12,
+        IndicatorType.TREND_STRENGTH.value: 0.25,
+        IndicatorType.MOMENTUM.value: 0.20,
+        IndicatorType.VOLUME_ANALYSIS.value: 0.15,
+        IndicatorType.VOLATILITY.value: 0.10,
+        IndicatorType.MARKET_SENTIMENT.value: 0.08,
         IndicatorType.PRICE_STRUCTURE.value: 0.12,
-        IndicatorType.SUPPORT_RESISTANCE.value: 0.12
+        IndicatorType.SUPPORT_RESISTANCE.value: 0.10
     }
     
     # عتبات الإشارات المحسنة
@@ -475,18 +475,17 @@ class FearGreedIndexFetcher(DataFetcher):
             return self._convert_to_score(self.last_value), self.last_value, self._get_trend()
     
     def _convert_to_score(self, fgi_value: int) -> float:
-        """تحويل قيمة FGI إلى درجة 0-1 محسنة"""
-        # تحويل غير خطي يعكس سلوك السوق بشكل أفضل
-        if fgi_value <= 20:  # خوف شديد
-            return 0.95 + (20 - fgi_value) * 0.0025
-        elif fgi_value <= 40:  # خوف
-            return 0.85 - (40 - fgi_value) * 0.01
-        elif fgi_value <= 60:  # محايد
-            return 0.55 - (60 - fgi_value) * 0.01
-        elif fgi_value <= 80:  # جشع
-            return 0.35 - (80 - fgi_value) * 0.01
-        else:  # جشع شديد
-            return 0.15 - (100 - fgi_value) * 0.0025
+        """تحويل عكسي - الجشع الشديد = إشارة بيع"""
+        if fgi_value >= 80:  # جشع شديد
+            return 0.15  # ← إشارة بيع (ليس 0.85!)
+        elif fgi_value >= 60:  # جشع
+            return 0.35  # ← إشارة بيع خفيفة
+        elif fgi_value >= 40:  # محايد
+            return 0.55
+        elif fgi_value >= 20:  # خوف
+            return 0.75  # ← إشارة شراء
+        else:  # خوف شديد
+            return 0.95  # ← إشارة شراء قوية
     
     def _get_trend(self) -> str:
         """الحصول على اتجاه المؤشر"""

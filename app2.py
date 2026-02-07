@@ -166,11 +166,11 @@ class AppConfig:
         'buy': 62,
         'strong_sell': 22,
         'sell': 38,
-        'significant_change': 8  # تغير بنسبة 8%
+        'significant_change': 6  # تغير بنسبة 8%
     }
     
     # إعدادات API
-    UPDATE_INTERVAL = 300  # 5 دقائق بالثواني
+    UPDATE_INTERVAL = 120  # 5 دقائق بالثواني
     DATA_FETCH_TIMEOUT = 30  # ثانية
     MAX_RETRIES = 3
     RETRY_DELAY = 5  # ثانية

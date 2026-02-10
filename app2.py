@@ -1857,7 +1857,7 @@ class SignalManager:
             strong_signals = []
             
             for symbol, signal in self.signals.items():
-                if signal.is_valid and signal.total_percentage >= 70:  # إشارات شراء قوية
+                if signal.is_valid and signal.total_percentage >= 63:  # إشارات شراء قوية
                     action = 'BUY' if signal.signal_type in [SignalType.STRONG_BUY, SignalType.BUY] else 'SELL'
                     
                     signal_data = {

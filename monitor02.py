@@ -14,6 +14,8 @@ from flask import Flask, jsonify, request
 import pytz
 from dotenv import load_dotenv
 from functools import wraps
+from test_api import test_bp
+app.register_blueprint(test_bp)
 
 warnings.filterwarnings('ignore')
 load_dotenv()

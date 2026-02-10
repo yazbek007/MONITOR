@@ -21,9 +21,9 @@ load_dotenv()
 # ========== Integrated Basic Settings ==========
 TRADING_SETTINGS = {
     'symbols': ["BNBUSDT", "ETHUSDT"],
-    'base_trade_amount': 4,  # 4 USD
+    'base_trade_amount': 3,  # 4 USD
     'leverage': 50,  # 50x leverage
-    'position_size': 4 * 50,  # 200 USD position size
+    'position_size': 3 * 50,  # 200 USD position size
     'max_simultaneous_trades': 2,
     'max_trades_per_symbol': 1,
     'min_balance_required': 5,

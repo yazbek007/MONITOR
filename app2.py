@@ -1277,6 +1277,98 @@ class NotificationManager:
         
         # ✅ إرسال إشعار بدء التشغيل بعد 5 ثوانٍ
         threading.Thread(target=self._send_startup_notification, daemon=True).start()
+
+    # في فئة NotificationManager، أضف هذه الدالة:
+
+    def test_executor_connection(self) -> Dict:
+        """اختبار اتصال البوت التنفيذ"""
+        try:
+            EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL')
+        
+            if not EXECUTOR_BOT_URL:
+                logger.warning("⚠️ EXECUTOR_BOT_URL غير معين")
+                return {
+                    'success': False,
+                    'message': 'لم يتم تعيين EXECUTOR_BOT_URL',
+                    'steps': ['❌ خطأ في الإعدادات']
+                }
+        
+            # الخطوة 1: محاولة الوصول إلى صفحة الصحة
+            logger.info(f"🔍 اختبار اتصال البوت التنفيذ: {EXECUTOR_BOT_URL}")
+        
+            health_url = f'{EXECUTOR_BOT_URL}/health'
+            steps = []
+        
+            try:
+                response = requests.get(health_url, timeout=5)
+                steps.append(f"✅ الوصول إلى صفحة الصحة: {response.status_code}")
+            
+                if response.status_code == 200:
+                    try:
+                        health_data = response.json()
+                        steps.append(f"📊 حالة النظام: {health_data.get('status', 'غير معروف')}")
+                    except:
+                        steps.append("⚠️ الاستجابة ليست JSON")
+                else:
+                    steps.append(f"❌ صفحة الصحة غير متوفرة: {response.status_code}")
+                
+            except requests.exceptions.ConnectionError:
+                steps.append("❌ فشل الاتصال بالبوت التنفيذ")
+            except requests.exceptions.Timeout:
+                steps.append("⏰ انتهت المهلة")
+        
+            # الخطوة 2: اختبار إرسال إشعار بسيط
+            test_signal = {
+                'test': True,
+                'timestamp': datetime.now().isoformat(),
+                'source': 'signal_bot_tester'
+            }
+        
+            try:
+                headers = {
+                    'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "test")}',
+                    'Content-Type': 'application/json'
+                }
+            
+                test_url = f'{EXECUTOR_BOT_URL}/api/test'
+            
+                response = requests.post(
+                    test_url,
+                    json=test_signal,
+                    headers=headers,
+                    timeout=5
+                )
+            
+                steps.append(f"📤 اختبار API: {response.status_code}")
+            
+                if response.status_code in [200, 201]:
+                    steps.append("✅ اتصال API ناجح")
+                    return {
+                        'success': True,
+                        'message': 'الاتصال بالبوت التنفيذ ناجح',
+                        'steps': steps,
+                        'url': EXECUTOR_BOT_URL
+                    }
+                else:
+                    steps.append(f"⚠️ استجابة غير متوقعة: {response.text[:100]}")
+                
+            except Exception as e:
+                steps.append(f"❌ خطأ في اختبار API: {str(e)}")
+        
+            return {
+                'success': False,
+                'message': 'فشل اختبار الاتصال',
+                'steps': steps,
+                'url': EXECUTOR_BOT_URL
+            }
+        
+        except Exception as e:
+            logger.error(f"❌ خطأ في اختبار الاتصال: {e}")
+            return {
+                'success': False,
+                'message': f'خطأ في اختبار الاتصال: {str(e)}',
+                'steps': [f'❌ خطأ غير متوقع: {str(e)}']
+            }
     
     def _send_startup_notification(self):
         """إرسال إشعار بدء التشغيل بعد فترة قصيرة"""
@@ -2241,6 +2333,185 @@ start_time = time.time()
 # Routes لإرسال الإشارات إلى البوت التنفيذي
 # ======================
 
+@app.route('/test-executor')
+def test_executor_page():
+    """صفحة اختبار البوت التنفيذ"""
+    return render_template('test_executor.html')
+
+
+@app.route('/api/check_executor_connection', methods=['GET'])
+def check_executor_connection():
+    """فحص اتصال البوت التنفيذ"""
+    try:
+        result = signal_manager.notification_manager.test_executor_connection()
+        
+        # تسجيل النتيجة في السجل
+        logger.info("=" * 50)
+        logger.info("🔍 نتيجة فحص اتصال البوت التنفيذ:")
+        for step in result.get('steps', []):
+            logger.info(f"   {step}")
+        logger.info(f"📊 النتيجة النهائية: {'✅ ناجح' if result.get('success') else '❌ فشل'}")
+        logger.info("=" * 50)
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ في فحص الاتصال: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'خطأ في فحص الاتصال: {str(e)}'
+        }), 500
+
+
+@app.route('/api/test_executor_notification', methods=['POST'])
+def test_executor_notification():
+    """إرسال إشعار تجريبي إلى البوت التنفيذ"""
+    try:
+        logger.info("🧪 بدء اختبار إشعار البوت التنفيذ...")
+        
+        # عنوان بوت التنفيذ
+        EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL')
+        
+        if not EXECUTOR_BOT_URL:
+            logger.error("❌ لم يتم تعيين EXECUTOR_BOT_URL في متغيرات البيئة")
+            return jsonify({
+                'success': False,
+                'message': 'لم يتم تعيين عنوان البوت التنفيذ'
+            })
+        
+        # إعداد بيانات الاختبار
+        test_signal = {
+            'signal': {
+                'symbol': 'BTCUSDT',
+                'action': 'BUY',
+                'confidence_score': 85.5,
+                'reason': 'إختبار نظام الإشعارات - إشارة تجريبية',
+                'coin_name': 'Bitcoin',
+                'timeframe': '15m',
+                'analysis': 'شراء قوي',
+                'signal_strength': 'قوية جداً',
+                'test_mode': True,
+                'test_timestamp': datetime.now().isoformat()
+            }
+        }
+        
+        # تسجيل تفاصيل الاختبار
+        logger.info(f"📤 إرسال إشعار اختبار إلى: {EXECUTOR_BOT_URL}")
+        logger.info(f"📊 بيانات الإشعار: {json.dumps(test_signal, ensure_ascii=False)}")
+        
+        # إعداد الهيدرات
+        headers = {
+            'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "test_key_123")}',
+            'Content-Type': 'application/json'
+        }
+        
+        logger.info(f"🔑 استخدام مفتاح API: {os.environ.get('EXECUTOR_API_KEY', 'مفتاح افتراضي')[:10]}...")
+        
+        # إرسال الطلب مع مهلة زمنية
+        start_time = time.time()
+        response = requests.post(
+            f'{EXECUTOR_BOT_URL}/api/trade/signal',
+            json=test_signal,
+            headers=headers,
+            timeout=15
+        )
+        request_time = time.time() - start_time
+        
+        # تحليل الاستجابة
+        logger.info(f"📥 استجابة البوت التنفيذ:")
+        logger.info(f"   ⏱️  وقت الاستجابة: {request_time:.2f} ثانية")
+        logger.info(f"   📊 كود الحالة: {response.status_code}")
+        logger.info(f"   📝 نص الاستجابة: {response.text[:200]}...")
+        
+        # تسجيل النتيجة
+        if response.status_code == 200:
+            logger.info("✅ تم إرسال الإشعار التجريبي بنجاح إلى البوت التنفيذ")
+            
+            try:
+                response_data = response.json()
+                logger.info(f"   📈 بيانات الاستجابة: {json.dumps(response_data, ensure_ascii=False)}")
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'تم إرسال الإشعار التجريبي بنجاح',
+                    'response_time': f"{request_time:.2f} ثانية",
+                    'status_code': response.status_code,
+                    'executor_response': response_data,
+                    'test_data_sent': test_signal
+                })
+            except json.JSONDecodeError:
+                logger.warning("⚠️ لم يتمكن البوت التنفيذ من إرجاع JSON")
+                return jsonify({
+                    'success': True,
+                    'message': 'تم إرسال الإشعار ولكن الاستجابة ليست JSON صحيح',
+                    'response_time': f"{request_time:.2f} ثانية",
+                    'status_code': response.status_code,
+                    'raw_response': response.text[:500]
+                })
+                
+        elif response.status_code == 401:
+            logger.error("❌ فشل المصادقة (401 Unauthorized)")
+            return jsonify({
+                'success': False,
+                'message': 'فشل المصادقة - تأكد من صحة مفتاح API',
+                'status_code': 401,
+                'details': 'EXECUTOR_API_KEY غير صحيح أو منتهي الصلاحية'
+            }), 401
+            
+        elif response.status_code == 404:
+            logger.error("❌ العنوان غير موجود (404 Not Found)")
+            return jsonify({
+                'success': False,
+                'message': 'العنوان غير موجود - تأكد من صحة EXECUTOR_BOT_URL',
+                'status_code': 404,
+                'details': f'تم الوصول إلى: {EXECUTOR_BOT_URL}/api/trade/signal'
+            }), 404
+            
+        elif response.status_code == 500:
+            logger.error("❌ خطأ داخلي في البوت التنفيذ (500 Internal Error)")
+            return jsonify({
+                'success': False,
+                'message': 'خطأ داخلي في البوت التنفيذ',
+                'status_code': 500,
+                'details': response.text[:500]
+            }), 500
+            
+        else:
+            logger.error(f"❌ استجابة غير متوقعة: {response.status_code}")
+            return jsonify({
+                'success': False,
+                'message': f'استجابة غير متوقعة من البوت التنفيذ: {response.status_code}',
+                'status_code': response.status_code,
+                'details': response.text[:500]
+            }), 400
+            
+    except requests.exceptions.Timeout:
+        logger.error("⏰ انتهت المهلة - البوت التنفيذ لم يستجب خلال 15 ثانية")
+        return jsonify({
+            'success': False,
+            'message': 'انتهت المهلة - البوت التنفيذ لم يستجب',
+            'details': 'تحقق من اتصال الشبكة وتوافر البوت التنفيذ'
+        }), 408
+        
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"🔌 خطأ في الاتصال: {e}")
+        return jsonify({
+            'success': False,
+            'message': 'فشل الاتصال بالبوت التنفيذ',
+            'details': str(e)
+        }), 503
+        
+    except Exception as e:
+        logger.error(f"❌ خطأ غير متوقع: {str(e)}")
+        import traceback
+        logger.error(f"📋 تفاصيل الخطأ:\n{traceback.format_exc()}")
+        
+        return jsonify({
+            'success': False,
+            'message': f'خطأ غير متوقع: {str(e)}',
+            'details': traceback.format_exc()[:1000]
+        }), 500
+
 @app.route('/api/send_signal_to_executor', methods=['POST'])
 def send_signal_to_executor():
     """إرسال إشارة إلى بوت التنفيذ"""
@@ -2562,6 +2833,8 @@ def background_monitor():
             logger.error(f"❌ خطأ في مراقبة الخلفية: {e}")
             time.sleep(300)  # انتظار 5 دقائق ثم المحاولة مرة أخرى
 
+# قم بتعديل دالة background_updater لتسجيل المزيد من التفاصيل:
+
 def background_updater():
     """تحديث تلقائي مع إرسال الإشارات"""
     logger.info("🔧 بدأ التحديث التلقائي مع إرسال الإشارات")
@@ -2576,14 +2849,25 @@ def background_updater():
             signal_manager.update_all_signals()
             
             # إرسال الإشارات القوية إلى بوت التنفيذ
+            logger.info("📤 التحقق من الإشارات القوية للإرسال...")
             strong_signals_sent = signal_manager.send_strong_signals_to_executor()
+            
             if strong_signals_sent > 0:
-                logger.info(f"📤 تم إرسال {strong_signals_sent} إشارة قوية إلى بوت التنفيذ")
+                logger.info(f"✅ تم إرسال {strong_signals_sent} إشارة قوية إلى بوت التنفيذ")
+            else:
+                logger.info("📭 لا توجد إشارات قوية للإرسال حالياً")
+            
+            # تسجيل حالة الإرسال
+            active_signals = len([s for s in signal_manager.signals.values() 
+                                if s.is_valid and s.total_percentage >= 63])
+            logger.info(f"📊 الإشارات القوية المتاحة: {active_signals}")
             
             # إرسال نبضة حياة
             try:
                 EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL')
                 if EXECUTOR_BOT_URL:
+                    logger.info(f"💓 إرسال نبضة حياة إلى: {EXECUTOR_BOT_URL}")
+                    
                     heartbeat_data = {
                         'heartbeat': True,
                         'source': 'signal_analyzer_bot',
@@ -2596,24 +2880,34 @@ def background_updater():
                         'Content-Type': 'application/json'
                     }
                     
-                    requests.post(
+                    response = requests.post(
                         f'{EXECUTOR_BOT_URL}/api/heartbeat',
                         json=heartbeat_data,
                         headers=headers,
                         timeout=5
                     )
-            except:
-                pass
+                    
+                    if response.status_code == 200:
+                        logger.info("✅ تم إرسال نبضة الحياة بنجاح")
+                    else:
+                        logger.warning(f"⚠️ فشل إرسال نبضة الحياة: {response.status_code}")
+                        
+            except Exception as e:
+                logger.error(f"❌ خطأ في إرسال نبضة الحياة: {e}")
             
             # انتظار
-            time.sleep(120)  # دقيقتين
+            wait_time = 120  # دقيقتين
+            logger.info(f"⏳ الانتظار {wait_time} ثانية للتحديث التالي...")
+            time.sleep(wait_time)
             
         except KeyboardInterrupt:
+            logger.info("🛑 توقف التحديث التلقائي بواسطة المستخدم")
             break
         except Exception as e:
-            print(f"❌ خطأ: {e}")
+            logger.error(f"❌ خطأ في التحديث التلقائي: {e}")
+            import traceback
+            logger.error(f"📋 التفاصيل:\n{traceback.format_exc()}")
             time.sleep(60)
-
 # ======================
 # تشغيل التطبيق
 # ======================

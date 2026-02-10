@@ -1850,6 +1850,54 @@ class SignalManager:
             logger.info(f"مؤشر الخوف والجشع: {self.fear_greed_index} (النتيجة: {self.fear_greed_score:.2f})")
         except Exception as e:
             logger.error(f"خطأ في تحديث مؤشر الخوف والجشع: {e}")
+
+    def send_strong_signals_to_executor(self):
+        """إرسال الإشارات القوية تلقائياً إلى بوت التنفيذ"""
+        try:
+            strong_signals = []
+            
+            for symbol, signal in self.signals.items():
+                if signal.is_valid and signal.total_percentage >= 70:  # إشارات شراء قوية
+                    action = 'BUY' if signal.signal_type in [SignalType.STRONG_BUY, SignalType.BUY] else 'SELL'
+                    
+                    signal_data = {
+                        'symbol': symbol.replace('/', ''),  # تحويل BTC/USDT إلى BTCUSDT
+                        'action': action,
+                        'confidence_score': signal.total_percentage,
+                        'reason': f'{signal.signal_type.value} - {signal.signal_strength}',
+                        'coin_name': signal.name,
+                        'signal_strength': signal.signal_strength
+                    }
+                    
+                    strong_signals.append(signal_data)
+            
+            if strong_signals:
+                EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL')
+                if EXECUTOR_BOT_URL:
+                    for signal in strong_signals:
+                        try:
+                            headers = {
+                                'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "default_key_here")}',
+                                'Content-Type': 'application/json'
+                            }
+                            
+                            response = requests.post(
+                                f'{EXECUTOR_BOT_URL}/api/trade/signal',
+                                json={'signal': signal},
+                                headers=headers,
+                                timeout=10
+                            )
+                            
+                            if response.status_code == 200:
+                                logger.info(f"✅ أرسلت إشارة {signal['symbol']} ({signal['confidence_score']:.1f}%) إلى بوت التنفيذ")
+                        except Exception as e:
+                            logger.error(f"❌ خطأ في إرسال إشارة {signal['symbol']}: {e}")
+            
+            return len(strong_signals)
+            
+        except Exception as e:
+            logger.error(f"❌ خطأ في إرسال الإشارات القوية: {e}")
+            return 0
     
     def _process_coin_signal(self, coin_config: CoinConfig) -> CoinSignal:
         """معالجة إشارة عملة واحدة (باستخدام 15m كإطار زمني أساسي)"""
@@ -2189,6 +2237,99 @@ start_time = time.time()
 # Routes
 # ======================
 
+# ======================
+# Routes لإرسال الإشارات إلى البوت التنفيذي
+# ======================
+
+@app.route('/api/send_signal_to_executor', methods=['POST'])
+def send_signal_to_executor():
+    """إرسال إشارة إلى بوت التنفيذ"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'لا توجد بيانات'})
+        
+        # عنوان بوت التنفيذ (افتراضي على Render)
+        EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL', 'http://localhost:10000')
+        
+        # تحويل تنسيق الإشارة
+        signal_to_send = {
+            'signal': {
+                'symbol': data.get('symbol'),
+                'action': data.get('action'),  # 'BUY' أو 'SELL'
+                'confidence_score': data.get('confidence_score', 50),
+                'reason': data.get('reason', 'إشارة من محلل الإشارات'),
+                'coin': data.get('coin_name'),
+                'timeframe': '15m',
+                'analysis': data.get('signal_strength', 'متوسطة')
+            }
+        }
+        
+        # إرسال الإشارة إلى بوت التنفيذ
+        headers = {
+            'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "default_key_here")}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(
+            f'{EXECUTOR_BOT_URL}/api/trade/signal',
+            json=signal_to_send,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"✅ تم إرسال الإشارة إلى بوت التنفيذ: {data.get('symbol')}")
+            return jsonify({'success': True, 'message': 'تم إرسال الإشارة'})
+        else:
+            logger.error(f"❌ فشل إرسال الإشارة: {response.status_code}")
+            return jsonify({'success': False, 'message': f'فشل الإرسال: {response.status_code}'})
+            
+    except Exception as e:
+        logger.error(f"❌ خطأ في إرسال الإشارة: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/send_heartbeat_to_executor', methods=['POST'])
+def send_heartbeat_to_executor():
+    """إرسال نبضة حياة إلى بوت التنفيذ"""
+    try:
+        EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL', 'http://localhost:10000')
+        
+        heartbeat_data = {
+            'heartbeat': True,
+            'source': 'signal_analyzer_bot',
+            'syria_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'system_stats': {
+                'total_coins': len(AppConfig.COINS),
+                'updated_coins': len(signal_manager.signals),
+                'avg_signal': signal_manager.get_stats().get('avg_signal', 50),
+                'last_update': signal_manager.last_update.isoformat() if signal_manager.last_update else None
+            }
+        }
+        
+        headers = {
+            'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "default_key_here")}',
+            'Content-Type': 'application/json'
+        }
+        
+        response = requests.post(
+            f'{EXECUTOR_BOT_URL}/api/heartbeat',
+            json=heartbeat_data,
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info("💓 تم إرسال نبضة حياة إلى بوت التنفيذ")
+            return jsonify({'success': True})
+        else:
+            logger.warning(f"⚠️ فشل إرسال نبضة الحياة: {response.status_code}")
+            return jsonify({'success': False})
+            
+    except Exception as e:
+        logger.error(f"❌ خطأ في إرسال نبضة الحياة: {e}")
+        return jsonify({'success': False})
+
 @app.route('/')
 def index():
     """الصفحة الرئيسية"""
@@ -2422,18 +2563,47 @@ def background_monitor():
             time.sleep(300)  # انتظار 5 دقائق ثم المحاولة مرة أخرى
 
 def background_updater():
-    """تحديث تلقائي بسيط جداً"""
-    logger.info("🔧 بدأ التحديث التلقائي البسيط جداً")
+    """تحديث تلقائي مع إرسال الإشارات"""
+    logger.info("🔧 بدأ التحديث التلقائي مع إرسال الإشارات")
     
-    # مجرد حلقة لا نهائية تستدعي التحديث
     while True:
         try:
             print(f"\n{'='*50}")
             print(f"🔄 التحديث التلقائي في: {datetime.now().strftime('%H:%M:%S')}")
             print(f"{'='*50}")
             
-            # ⭐⭐ السطر الوحيد المهم ⭐⭐
+            # تحديث الإشارات
             signal_manager.update_all_signals()
+            
+            # إرسال الإشارات القوية إلى بوت التنفيذ
+            strong_signals_sent = signal_manager.send_strong_signals_to_executor()
+            if strong_signals_sent > 0:
+                logger.info(f"📤 تم إرسال {strong_signals_sent} إشارة قوية إلى بوت التنفيذ")
+            
+            # إرسال نبضة حياة
+            try:
+                EXECUTOR_BOT_URL = os.environ.get('EXECUTOR_BOT_URL')
+                if EXECUTOR_BOT_URL:
+                    heartbeat_data = {
+                        'heartbeat': True,
+                        'source': 'signal_analyzer_bot',
+                        'syria_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'system_stats': signal_manager.get_stats()
+                    }
+                    
+                    headers = {
+                        'Authorization': f'Bearer {os.environ.get("EXECUTOR_API_KEY", "default_key_here")}',
+                        'Content-Type': 'application/json'
+                    }
+                    
+                    requests.post(
+                        f'{EXECUTOR_BOT_URL}/api/heartbeat',
+                        json=heartbeat_data,
+                        headers=headers,
+                        timeout=5
+                    )
+            except:
+                pass
             
             # انتظار
             time.sleep(120)  # دقيقتين
@@ -2443,7 +2613,6 @@ def background_updater():
         except Exception as e:
             print(f"❌ خطأ: {e}")
             time.sleep(60)
-
 
 # ======================
 # تشغيل التطبيق

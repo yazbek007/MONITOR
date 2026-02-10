@@ -100,6 +100,8 @@ logger = logging.getLogger(__name__)
 
 # ========== Core Classes ==========
 
+# ========== Core Classes ==========
+
 class NtfyNotifier:
     """Ntfy Notification Manager with Enhanced Error Handling"""
     
@@ -122,7 +124,7 @@ class NtfyNotifier:
                 logger.info("✅ Ntfy connection active")
                 return True
             else:
-                logger.error(f"❌ Ntfy test failed: {response.status_code}")
+                logger.error(f"❌ Ntfytest failed: {response.status_code}")
                 return False
                 
         except Exception as e:

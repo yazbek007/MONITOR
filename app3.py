@@ -1,6 +1,6 @@
 """
 Crypto Signal Analyzer Bot - النسخة الخفيفة والمحسنة للذاكرة
-إصدار 3.5.2 - بدون Pandas/Numpy - تعمل على Render بذاكرة 512MB
+إصدار 3.5.2 - جميع رسائل NTFY باللغة الإنجليزية (بدون إيموجيات)
 """
 
 import os
@@ -8,6 +8,7 @@ import json
 import time
 import math
 import logging
+import threading
 import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
@@ -16,7 +17,6 @@ from enum import Enum
 from threading import Lock
 
 from flask import Flask, render_template, jsonify, request
-from apscheduler.schedulers.background import BackgroundScheduler
 import ccxt
 
 # ======================
@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 # هياكل البيانات الأساسية
 # ======================
 class SignalType(Enum):
-    STRONG_BUY = "شراء قوي"
-    BUY = "شراء"
-    NEUTRAL = "محايد"
-    SELL = "بيع"
-    STRONG_SELL = "بيع قوي"
+    STRONG_BUY = "STRONG BUY"
+    BUY = "BUY"
+    NEUTRAL = "NEUTRAL"
+    SELL = "SELL"
+    STRONG_SELL = "STRONG SELL"
 
 class IndicatorType(Enum):
     TREND = "trend"
@@ -62,7 +62,7 @@ class CoinConfig:
 @dataclass
 class IndicatorScore:
     name: str
-    raw_score: float  # 0-1
+    raw_score: float
     weighted_score: float
     percentage: float
     weight: float
@@ -100,10 +100,10 @@ class Notification:
     price: float
 
 # ======================
-# إعدادات التطبيق - قائمة مختصرة وخفيفة
+# إعدادات التطبيق
 # ======================
 class AppConfig:
-    # العملات المدعومة (أهم 15 عملة لتخفيف الحمل)
+    # العملات المدعومة (أهم 15 عملة)
     COINS = [
         CoinConfig("BTC/USDT", "Bitcoin", "BTC", "USDT"),
         CoinConfig("ETH/USDT", "Ethereum", "ETH", "USDT"),
@@ -122,7 +122,6 @@ class AppConfig:
         CoinConfig("BCH/USDT", "Bitcoin Cash", "BCH", "USDT"),
     ]
 
-    # أوزان المؤشرات المبسطة
     INDICATOR_WEIGHTS = {
         IndicatorType.TREND.value: 0.25,
         IndicatorType.MOMENTUM.value: 0.20,
@@ -133,7 +132,6 @@ class AppConfig:
         IndicatorType.SUPPORT_RESISTANCE.value: 0.10
     }
 
-    # عتبات الإشارات
     SIGNAL_THRESHOLDS = {
         SignalType.STRONG_BUY: 75,
         SignalType.BUY: 60,
@@ -142,11 +140,9 @@ class AppConfig:
         SignalType.STRONG_SELL: 25
     }
 
-    # إعدادات التحديث
-    UPDATE_INTERVAL = 120  # 2 دقيقة
-    MAX_CANDLES = 200      # عدد الشموع المحجوبة - أقل بكثير من 500
+    UPDATE_INTERVAL = 120  # 2 minutes
+    MAX_CANDLES = 200
 
-    # ألوان المؤشرات
     INDICATOR_COLORS = {
         IndicatorType.TREND.value: '#2E86AB',
         IndicatorType.MOMENTUM.value: '#A23B72',
@@ -158,23 +154,23 @@ class AppConfig:
     }
 
     INDICATOR_DISPLAY_NAMES = {
-        IndicatorType.TREND.value: 'قوة الاتجاه',
-        IndicatorType.MOMENTUM.value: 'الزخم',
-        IndicatorType.VOLUME.value: 'الحجم',
-        IndicatorType.VOLATILITY.value: 'التقلب',
-        IndicatorType.SENTIMENT.value: 'معنويات السوق',
-        IndicatorType.STRUCTURE.value: 'هيكل السعر',
-        IndicatorType.SUPPORT_RESISTANCE.value: 'دعم/مقاومة'
+        IndicatorType.TREND.value: 'Trend Strength',
+        IndicatorType.MOMENTUM.value: 'Momentum',
+        IndicatorType.VOLUME.value: 'Volume',
+        IndicatorType.VOLATILITY.value: 'Volatility',
+        IndicatorType.SENTIMENT.value: 'Market Sentiment',
+        IndicatorType.STRUCTURE.value: 'Price Structure',
+        IndicatorType.SUPPORT_RESISTANCE.value: 'Support/Resistance'
     }
 
     INDICATOR_DESCRIPTIONS = {
-        IndicatorType.TREND.value: 'يقيس اتجاه السعر بناءً على المتوسطات المتحركة',
-        IndicatorType.MOMENTUM.value: 'يقيس سرعة التغير باستخدام RSI ومعدل التغير',
-        IndicatorType.VOLUME.value: 'يقيس نشاط التداول مقارنة بالمتوسط',
-        IndicatorType.VOLATILITY.value: 'يقيس تقلبات السعر باستخدام Bollinger Bands',
-        IndicatorType.SENTIMENT.value: 'مؤشر الخوف والجشع',
-        IndicatorType.STRUCTURE.value: 'يحلل القمم والقيعان المحلية',
-        IndicatorType.SUPPORT_RESISTANCE.value: 'يحدد مستويات الدعم والمقاومة القريبة'
+        IndicatorType.TREND.value: 'Measures trend direction using moving averages',
+        IndicatorType.MOMENTUM.value: 'Measures speed of price change using RSI and ROC',
+        IndicatorType.VOLUME.value: 'Measures trading activity compared to average',
+        IndicatorType.VOLATILITY.value: 'Measures price volatility using Bollinger Bands',
+        IndicatorType.SENTIMENT.value: 'Fear & Greed Index',
+        IndicatorType.STRUCTURE.value: 'Analyzes local highs and lows',
+        IndicatorType.SUPPORT_RESISTANCE.value: 'Identifies nearby support/resistance levels'
     }
 
 # ======================
@@ -190,7 +186,7 @@ class ExternalAPIConfig:
     MAX_RETRIES = 2
 
 # ======================
-# عميل Binance خفيف باستخدام CCXT
+# Binance Client
 # ======================
 class BinanceClient:
     def __init__(self):
@@ -202,10 +198,8 @@ class BinanceClient:
         })
 
     def fetch_ohlcv(self, symbol: str, timeframe: str = '15m', limit: int = 200) -> Optional[List]:
-        """جلب الشموع كقائمة بسيطة بدلاً من DataFrame"""
         try:
-            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-            return ohlcv  # قائمة من القوائم [timestamp, open, high, low, close, volume]
+            return self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
         except Exception as e:
             logger.error(f"Binance OHLCV error {symbol}: {e}")
             return None
@@ -233,7 +227,7 @@ class BinanceClient:
         return ticker['last'] if ticker else 0.0
 
 # ======================
-# مؤشر الخوف والجشع (مبسط مع كاش)
+# Fear & Greed Index Fetcher
 # ======================
 class FearGreedFetcher:
     def __init__(self):
@@ -263,22 +257,20 @@ class FearGreedFetcher:
     def _to_score(self, value: int) -> float:
         if value >= 80:
             return 0.20
-        elif value >= 60:
+        if value >= 60:
             return 0.40
-        elif value >= 40:
+        if value >= 40:
             return 0.60
-        elif value >= 20:
+        if value >= 20:
             return 0.80
-        else:
-            return 0.95
+        return 0.95
 
 # ======================
-# حاسبات المؤشرات - بدون Pandas/Numpy
+# Indicator Calculators (unchanged logic)
 # ======================
 class IndicatorCalculator:
     @staticmethod
     def sma(prices: List[float], period: int) -> List[Optional[float]]:
-        """المتوسط المتحرك البسيط"""
         result = []
         for i in range(len(prices)):
             if i < period - 1:
@@ -289,7 +281,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def ema(prices: List[float], period: int) -> List[float]:
-        """المتوسط المتحرك الأسي"""
         if not prices:
             return []
         k = 2 / (period + 1)
@@ -300,7 +291,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def rsi(prices: List[float], period: int = 14) -> List[Optional[float]]:
-        """مؤشر القوة النسبية"""
         if len(prices) < period + 1:
             return [None] * len(prices)
         deltas = [prices[i] - prices[i-1] for i in range(1, len(prices))]
@@ -325,7 +315,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def trend_strength(close_prices: List[float]) -> float:
-        """قوة الاتجاه المبسطة"""
         if len(close_prices) < 30:
             return 0.5
         sma_20 = IndicatorCalculator.sma(close_prices, 20)[-1]
@@ -336,14 +325,12 @@ class IndicatorCalculator:
 
         current = close_prices[-1]
         score = 0.0
-        # السعر فوق المتوسطات
         if current > sma_20:
             score += 0.4
         if current > sma_50:
             score += 0.3
         if current > sma_100:
             score += 0.3
-        # ترتيب المتوسطات
         if sma_20 > sma_50 > sma_100:
             score += 0.3
         elif sma_20 < sma_50 < sma_100:
@@ -353,28 +340,26 @@ class IndicatorCalculator:
 
     @staticmethod
     def momentum(close_prices: List[float]) -> float:
-        """الزخم المبسط (RSI + ROC)"""
         if len(close_prices) < 20:
             return 0.5
 
-        # RSI
         rsi_vals = IndicatorCalculator.rsi(close_prices, 14)
         last_rsi = rsi_vals[-1] if rsi_vals[-1] is not None else 50
-        rsi_score = 1.0 - (last_rsi / 100)  # كلما قل الـ RSI كان أفضل للشراء
+
         if last_rsi < 30:
             rsi_score = 0.9
         elif last_rsi > 70:
             rsi_score = 0.2
+        else:
+            rsi_score = 1.0 - (last_rsi / 100)
 
-        # ROC (معدل التغير)
         roc_14 = (close_prices[-1] - close_prices[-14]) / close_prices[-14] * 100
         roc_score = max(0.0, min(1.0, (roc_14 + 5) / 10))
 
-        return (rsi_score * 0.6 + roc_score * 0.4)
+        return rsi_score * 0.6 + roc_score * 0.4
 
     @staticmethod
     def volume_analysis(volumes: List[float], close_prices: List[float]) -> float:
-        """تحليل الحجم"""
         if len(volumes) < 20:
             return 0.5
         current_vol = volumes[-1]
@@ -392,7 +377,6 @@ class IndicatorCalculator:
         else:
             score = 0.4
 
-        # تأكيد الاتجاه
         price_change = (close_prices[-1] - close_prices[-2]) / close_prices[-2]
         if price_change > 0.01 and score > 0.6:
             score += 0.1
@@ -403,7 +387,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def volatility(high: List[float], low: List[float], close: List[float]) -> float:
-        """التقلب - Bollinger Bands عرض النطاق"""
         if len(close) < 20:
             return 0.5
         sma_20 = IndicatorCalculator.sma(close, 20)[-1]
@@ -417,43 +400,31 @@ class IndicatorCalculator:
             return 0.5
 
         position = (close[-1] - lower) / (upper - lower)
-        # القرب من الحدود
         if position > 0.8:
-            return 0.2  # مقاومة
-        elif position < 0.2:
-            return 0.8  # دعم
-        else:
-            return 0.5
+            return 0.2
+        if position < 0.2:
+            return 0.8
+        return 0.5
 
     @staticmethod
     def price_structure(high: List[float], low: List[float], close: List[float]) -> float:
-        """هيكل السعر - القمم والقيعان"""
         if len(high) < 30:
             return 0.5
-
-        # آخر 30 شمعة
         recent_high = max(high[-30:])
         recent_low = min(low[-30:])
-        current = close[-1]
-
         if recent_high == recent_low:
             return 0.5
-
-        position = (current - recent_low) / (recent_high - recent_low)
+        position = (close[-1] - recent_low) / (recent_high - recent_low)
         if position > 0.8:
-            return 0.3  # قرب قمة
-        elif position < 0.2:
-            return 0.7  # قرب قاع
-        else:
-            return 0.5
+            return 0.3
+        if position < 0.2:
+            return 0.7
+        return 0.5
 
     @staticmethod
     def support_resistance(high: List[float], low: List[float], close: List[float]) -> float:
-        """دعم ومقاومة مبسط"""
         if len(high) < 40:
             return 0.5
-
-        # قمم وقيعان بسيطة
         highs = high[-40:]
         lows = low[-40:]
         resistance_candidates = []
@@ -469,26 +440,24 @@ class IndicatorCalculator:
             return 0.5
 
         current = close[-1]
-        # أقرب مقاومة
         closest_resistance = min([r for r in resistance_candidates if r > current], default=None)
-        # أقرب دعم
         closest_support = max([s for s in support_candidates if s < current], default=None)
 
         if closest_resistance and closest_support:
             distance_to_resistance = (closest_resistance - current) / current
             distance_to_support = (current - closest_support) / current
             if distance_to_support < 0.02:
-                return 0.9  # قريب جداً من الدعم
-            elif distance_to_resistance < 0.02:
-                return 0.1  # قريب جداً من المقاومة
-            elif distance_to_support < 0.05:
+                return 0.9
+            if distance_to_resistance < 0.02:
+                return 0.1
+            if distance_to_support < 0.05:
                 return 0.7
-            elif distance_to_resistance < 0.05:
+            if distance_to_resistance < 0.05:
                 return 0.3
         return 0.5
 
 # ======================
-# معالج الإشارات
+# Signal Processor
 # ======================
 class SignalProcessor:
     @staticmethod
@@ -528,27 +497,25 @@ class SignalProcessor:
     def get_signal_type(percentage: float) -> SignalType:
         if percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.STRONG_BUY]:
             return SignalType.STRONG_BUY
-        elif percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.BUY]:
+        if percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.BUY]:
             return SignalType.BUY
-        elif percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.NEUTRAL]:
+        if percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.NEUTRAL]:
             return SignalType.NEUTRAL
-        elif percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.SELL]:
+        if percentage >= AppConfig.SIGNAL_THRESHOLDS[SignalType.SELL]:
             return SignalType.SELL
-        else:
-            return SignalType.STRONG_SELL
+        return SignalType.STRONG_SELL
 
     @staticmethod
     def get_signal_strength(percentage: float) -> str:
         if percentage >= 85:
-            return "قوية جداً"
-        elif percentage >= 70:
-            return "قوية"
-        elif percentage >= 55:
-            return "متوسطة"
-        elif percentage >= 40:
-            return "ضعيفة"
-        else:
-            return "ضعيفة جداً"
+            return "Very Strong"
+        if percentage >= 70:
+            return "Strong"
+        if percentage >= 55:
+            return "Moderate"
+        if percentage >= 40:
+            return "Weak"
+        return "Very Weak"
 
     @staticmethod
     def get_signal_color(signal_type: SignalType) -> str:
@@ -562,14 +529,14 @@ class SignalProcessor:
         return mapping.get(signal_type, "secondary")
 
 # ======================
-# مدير الإشعارات (مبسط)
+# Notification Manager (English only, no emojis)
 # ======================
 class NotificationManager:
     def __init__(self):
         self.history: List[Notification] = []
         self.max_history = 50
         self.last_notification_time = {}
-        self.min_interval = 300  # 5 دقائق
+        self.min_interval = 300  # 5 minutes
 
     def add(self, notification: Notification):
         self.history.append(notification)
@@ -595,15 +562,19 @@ class NotificationManager:
 
     def send_ntfy(self, message: str, title: str = "Crypto Signal", priority: str = "3", tags: str = "chart") -> bool:
         try:
+            # Use only ASCII characters (no emojis, no Arabic)
+            # Ensure message is plain text without special characters
             headers = {
                 "Title": title,
                 "Priority": priority,
                 "Tags": tags,
                 "Content-Type": "text/plain; charset=utf-8"
             }
+            # Encode message as UTF-8, but ensure it's ASCII-safe
+            safe_message = message.encode('ascii', errors='replace').decode('ascii')
             resp = requests.post(
                 ExternalAPIConfig.NTFY_URL,
-                data=message.encode('utf-8'),
+                data=safe_message.encode('utf-8'),
                 headers=headers,
                 timeout=5
             )
@@ -618,25 +589,40 @@ class NotificationManager:
 
         coin = coin_signal
         signal_type = coin.signal_type
+
+        # Create English message without emojis
         if signal_type in [SignalType.STRONG_BUY, SignalType.BUY]:
-            emoji = "🚀"
-            title = f"{emoji} {signal_type.value}: {coin.name}"
+            signal_direction = "BUY"
         elif signal_type in [SignalType.STRONG_SELL, SignalType.SELL]:
-            emoji = "⚠️"
-            title = f"{emoji} {signal_type.value}: {coin.name}"
+            signal_direction = "SELL"
         else:
             return None
 
+        title = f"{signal_type.value} Signal: {coin.name}"
         message = (
             f"{title}\n"
-            f"📊 Strength: {coin.total_percentage:.1f}%\n"
-            f"💰 Price: ${coin.current_price:,.2f}\n"
-            f"📈 24h: {coin.price_change_24h:+.2f}%\n"
-            f"⏰ {coin.last_updated.strftime('%H:%M')}"
+            f"Signal Strength: {coin.total_percentage:.1f}%\n"
+            f"Price: ${coin.current_price:,.2f}\n"
+            f"24h Change: {coin.price_change_24h:+.2f}%\n"
+            f"Time: {coin.last_updated.strftime('%H:%M')}"
         )
 
-        tags = "green_circle" if "BUY" in signal_type.value else "red_circle"
-        priority = "4" if "قوي" in signal_type.value else "3"
+        # Map tags and priority
+        tags_map = {
+            SignalType.STRONG_BUY: "heavy_plus_sign",
+            SignalType.BUY: "chart_increasing",
+            SignalType.STRONG_SELL: "heavy_minus_sign",
+            SignalType.SELL: "chart_decreasing"
+        }
+        tags = tags_map.get(signal_type, "loudspeaker")
+
+        priority_map = {
+            SignalType.STRONG_BUY: "4",
+            SignalType.BUY: "3",
+            SignalType.STRONG_SELL: "4",
+            SignalType.SELL: "3"
+        }
+        priority = priority_map.get(signal_type, "3")
 
         if self.send_ntfy(message, title, priority, tags):
             notification = Notification(
@@ -655,7 +641,7 @@ class NotificationManager:
         return None
 
 # ======================
-# مدير الإشارات الرئيسي
+# Signal Manager
 # ======================
 class SignalManager:
     def __init__(self):
@@ -671,7 +657,7 @@ class SignalManager:
 
     def update_all(self) -> bool:
         with self.lock:
-            logger.info(f"🔄 بدء تحديث {len(AppConfig.COINS)} عملة...")
+            logger.info(f"🔄 Updating {len(AppConfig.COINS)} coins...")
             success_count = 0
             self.fear_greed_score, self.fear_greed_index = self.fgi_fetcher.get()
 
@@ -685,11 +671,11 @@ class SignalManager:
                         success_count += 1
                         self.notification_manager.create_notification(signal)
                 except Exception as e:
-                    logger.error(f"خطأ في {coin.symbol}: {e}")
+                    logger.error(f"Error on {coin.symbol}: {e}")
 
             self.last_update = datetime.now()
             self._save_history()
-            logger.info(f"✅ تم تحديث {success_count}/{len(AppConfig.COINS)}")
+            logger.info(f"✅ Updated {success_count}/{len(AppConfig.COINS)}")
             return success_count > 0
 
     def _process_coin(self, coin: CoinConfig) -> Optional[CoinSignal]:
@@ -697,7 +683,6 @@ class SignalManager:
         if not ohlcv or len(ohlcv) < 50:
             return None
 
-        # استخراج الأعمدة
         closes = [c[4] for c in ohlcv]
         highs = [c[2] for c in ohlcv]
         lows = [c[3] for c in ohlcv]
@@ -713,7 +698,6 @@ class SignalManager:
         low_24h = ticker.get('low', 0.0)
         volume_24h = ticker.get('quoteVolume', 0.0)
 
-        # حساب المؤشرات
         scores = {
             IndicatorType.TREND.value: IndicatorCalculator.trend_strength(closes),
             IndicatorType.MOMENTUM.value: IndicatorCalculator.momentum(closes),
@@ -808,10 +792,10 @@ class SignalManager:
             'formatted_volume_24h': '0',
             'total_percentage': 50,
             'signal_type': SignalType.NEUTRAL.value,
-            'signal_strength': 'غير متوفر',
+            'signal_strength': 'Unavailable',
             'signal_color': 'secondary',
             'indicators': [],
-            'last_updated_str': 'غير معروف',
+            'last_updated_str': 'Unknown',
             'fear_greed_value': self.fear_greed_index,
             'is_valid': False
         }
@@ -837,15 +821,15 @@ class SignalManager:
     @staticmethod
     def _format_time_delta(dt: datetime) -> str:
         if not dt:
-            return "غير معروف"
+            return "Unknown"
         delta = datetime.now() - dt
         if delta.days > 0:
-            return f"قبل {delta.days} يوم"
+            return f"{delta.days} day(s) ago"
         if delta.seconds >= 3600:
-            return f"قبل {delta.seconds//3600} ساعة"
+            return f"{delta.seconds//3600} hour(s) ago"
         if delta.seconds >= 60:
-            return f"قبل {delta.seconds//60} دقيقة"
-        return "الآن"
+            return f"{delta.seconds//60} minute(s) ago"
+        return "Just now"
 
     def get_stats(self) -> Dict:
         coins = self.get_coins_data()
@@ -869,32 +853,62 @@ class SignalManager:
             'neutral_signals': neutral,
             'sell_signals': sell,
             'strong_sell_signals': strong_sell,
-            'last_update_str': self._format_time_delta(self.last_update) if self.last_update else 'غير معروف',
+            'last_update_str': self._format_time_delta(self.last_update) if self.last_update else 'Unknown',
             'total_notifications': len(self.notification_manager.history),
             'fear_greed_index': self.fear_greed_index,
             'system_status': 'healthy' if len(valid) >= len(AppConfig.COINS) * 0.7 else 'warning'
         }
 
 # ======================
-# إنشاء التطبيق
+# Background Updater (Thread)
+# ======================
+def background_updater():
+    """Automatic update every 2 minutes"""
+    while True:
+        try:
+            signal_manager.update_all()
+            time.sleep(AppConfig.UPDATE_INTERVAL)
+        except Exception as e:
+            logger.error(f"Update error: {e}")
+            time.sleep(60)
+
+# ======================
+# Flask App Initialization
 # ======================
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'crypto-signal-secret-2026')
 signal_manager = SignalManager()
 start_time = time.time()
 
-# ======================
-# المجدول الخلفي - يعمل كل 2 دقيقة
-# ======================
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=signal_manager.update_all, trigger="interval", seconds=AppConfig.UPDATE_INTERVAL)
-scheduler.start()
+# Start background updater thread
+updater_thread = threading.Thread(target=background_updater, daemon=True)
+updater_thread.start()
 
-# تحديث أولي فور بدء التشغيل
+# Initial update
 signal_manager.update_all()
 
 # ======================
-# المسارات (Routes)
+# Context Processor for Templates
+# ======================
+@app.context_processor
+def utility_processor():
+    def signal_color_to_css(color_name):
+        mapping = {
+            'success': 'var(--success)',
+            'primary': 'var(--primary)',
+            'secondary': 'var(--gray)',
+            'warning': 'var(--warning)',
+            'danger': 'var(--danger)'
+        }
+        return mapping.get(color_name, 'var(--secondary)')
+    return dict(
+        signal_color_to_css=signal_color_to_css,
+        get_indicator_color=lambda k: AppConfig.INDICATOR_COLORS.get(k, '#2E86AB'),
+        get_indicator_display_name=lambda k: AppConfig.INDICATOR_DISPLAY_NAMES.get(k, k)
+    )
+
+# ======================
+# Routes
 # ======================
 @app.route('/')
 def index():
@@ -906,9 +920,7 @@ def index():
         coins=coins,
         stats=stats,
         notifications=notifications,
-        indicator_weights=AppConfig.INDICATOR_WEIGHTS,
-        get_indicator_color=lambda k: AppConfig.INDICATOR_COLORS.get(k, '#2E86AB'),
-        get_indicator_display_name=lambda k: AppConfig.INDICATOR_DISPLAY_NAMES.get(k, k)
+        indicator_weights=AppConfig.INDICATOR_WEIGHTS
     )
 
 @app.route('/api/signals')
@@ -924,7 +936,7 @@ def manual_update():
     success = signal_manager.update_all()
     return jsonify({
         'status': 'success' if success else 'warning',
-        'message': 'تم التحديث',
+        'message': 'Update completed',
         'timestamp': datetime.now().isoformat()
     })
 
@@ -955,8 +967,8 @@ def get_notifications():
 
 @app.route('/api/test_ntfy')
 def test_ntfy():
-    msg = "🧪 اختبار NTFY - النظام يعمل ✅"
-    success = signal_manager.notification_manager.send_ntfy(msg, "اختبار", "4", "test_tube")
+    msg = "Test notification - System is working properly"
+    success = signal_manager.notification_manager.send_ntfy(msg, "Test", "3", "test_tube")
     return jsonify({'success': success})
 
 @app.route('/api/indicator_weights')
@@ -968,13 +980,35 @@ def indicator_weights():
     })
 
 # ======================
-# بدء التشغيل
+# Startup notification (English, no emoji)
+# ======================
+def send_startup_notification():
+    try:
+        msg = (
+            f"Crypto Signal Analyzer Started\n"
+            f"Version: 3.5.2 (English notifications)\n"
+            f"Tracking {len(AppConfig.COINS)} coins\n"
+            f"Update interval: {AppConfig.UPDATE_INTERVAL//60} minutes"
+        )
+        signal_manager.notification_manager.send_ntfy(msg, "System Started", "3", "rocket")
+    except Exception as e:
+        logger.error(f"Startup notification error: {e}")
+
+# Send startup notification after a short delay
+def delayed_startup():
+    time.sleep(5)
+    send_startup_notification()
+
+threading.Thread(target=delayed_startup, daemon=True).start()
+
+# ======================
+# Main
 # ======================
 if __name__ == '__main__':
     logger.info("=" * 50)
-    logger.info("🚀 تشغيل Crypto Signal Analyzer v3.5.2 (خفيف)")
-    logger.info(f"📊 العملات: {len(AppConfig.COINS)}")
-    logger.info(f"🔄 تحديث كل {AppConfig.UPDATE_INTERVAL//60} دقيقة")
+    logger.info("🚀 Crypto Signal Analyzer v3.5.2 (Lightweight, English NTFY)")
+    logger.info(f"📊 Coins: {len(AppConfig.COINS)}")
+    logger.info(f"🔄 Update every {AppConfig.UPDATE_INTERVAL//60} minutes")
     logger.info(f"📢 NTFY: {ExternalAPIConfig.NTFY_URL}")
     logger.info("=" * 50)
 

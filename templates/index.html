@@ -482,7 +482,10 @@
                             <td>
                                 <span style="font-weight: 600; color: var(--dark);">{{ "%.1f"|format(coin.total_percentage) }}%</span>
                                 <div class="progress">
-                                    <div class="progress-bar fill-{{ coin.signal_color }}" style="width: {{ coin.total_percentage }}%; background: {{ coin.signal_color == 'success' ? 'var(--success)' : coin.signal_color == 'primary' ? 'var(--primary)' : coin.signal_color == 'gray' ? 'var(--gray)' : coin.signal_color == 'warning' ? 'var(--warning)' : 'var(--danger)' }};"></div>
+                                    <div class="progress-bar" 
+                                    style="width: {{ coin.total_percentage }}%; 
+                                           background: {% if coin.signal_color == 'success' %}var(--success){% elif coin.signal_color == 'primary' %}var(--primary){% elif coin.signal_color == 'secondary' or coin.signal_color == 'gray' %}var(--gray){% elif coin.signal_color == 'warning' %}var(--warning){% else %}var(--danger){% endif %};">
+                                    </div>
                                 </div>
                             </td>
                             <td>

@@ -131,12 +131,36 @@ class AppConfig:
     
     # العملات المدعومة
     COINS = [
+        # 🥇 Top 10 Cryptocurrencies (February 2026) [citation:5]
         CoinConfig(symbol="BTC/USDT", name="Bitcoin", base_asset="BTC", quote_asset="USDT"),
         CoinConfig(symbol="ETH/USDT", name="Ethereum", base_asset="ETH", quote_asset="USDT"),
         CoinConfig(symbol="BNB/USDT", name="Binance Coin", base_asset="BNB", quote_asset="USDT"),
+        CoinConfig(symbol="XRP/USDT", name="Ripple", base_asset="XRP", quote_asset="USDT"),
         CoinConfig(symbol="SOL/USDT", name="Solana", base_asset="SOL", quote_asset="USDT"),
         CoinConfig(symbol="ADA/USDT", name="Cardano", base_asset="ADA", quote_asset="USDT"),
-        CoinConfig(symbol="XRP/USDT", name="Ripple", base_asset="XRP", quote_asset="USDT")
+        CoinConfig(symbol="TRX/USDT", name="TRON", base_asset="TRX", quote_asset="USDT"),
+        CoinConfig(symbol="DOGE/USDT", name="Dogecoin", base_asset="DOGE", quote_asset="USDT"),
+        CoinConfig(symbol="BCH/USDT", name="Bitcoin Cash", base_asset="BCH", quote_asset="USDT"),
+        CoinConfig(symbol="LINK/USDT", name="Chainlink", base_asset="LINK", quote_asset="USDT"),
+    
+        # 🚀 New Binance Listings (January 2026) [citation:1][citation:6][citation:10]
+        CoinConfig(symbol="AVAX/USDT", name="Avalanche", base_asset="AVAX", quote_asset="USDT"),
+        CoinConfig(symbol="UNI/USDT", name="Uniswap", base_asset="UNI", quote_asset="USDT"),
+        CoinConfig(symbol="KGST/USDT", name="KangasToken", base_asset="KGST", quote_asset="USDT"),
+    
+        # ⭐ Top Layer-1 & Layer-2 Solutions [citation:3][citation:7]
+        CoinConfig(symbol="MATIC/USDT", name="Polygon", base_asset="MATIC", quote_asset="USDT"),
+        CoinConfig(symbol="DOT/USDT", name="Polkadot", base_asset="DOT", quote_asset="USDT"),
+        CoinConfig(symbol="LTC/USDT", name="Litecoin", base_asset="LTC", quote_asset="USDT"),
+        CoinConfig(symbol="XLM/USDT", name="Stellar", base_asset="XLM", quote_asset="USDT"),
+        CoinConfig(symbol="ATOM/USDT", name="Cosmos", base_asset="ATOM", quote_asset="USDT"),
+        CoinConfig(symbol="XMR/USDT", name="Monero", base_asset="XMR", quote_asset="USDT"),
+        CoinConfig(symbol="ETC/USDT", name="Ethereum Classic", base_asset="ETC", quote_asset="USDT"),
+        CoinConfig(symbol="FIL/USDT", name="Filecoin", base_asset="FIL", quote_asset="USDT"),
+        CoinConfig(symbol="APT/USDT", name="Aptos", base_asset="APT", quote_asset="USDT"),
+        CoinConfig(symbol="ARB/USDT", name="Arbitrum", base_asset="ARB", quote_asset="USDT"),
+        CoinConfig(symbol="OP/USDT", name="Optimism", base_asset="OP", quote_asset="USDT"),
+        CoinConfig(symbol="SUI/USDT", name="Sui", base_asset="SUI", quote_asset="USDT"),
     ]
     
     # أوزان المؤشرات المحسنة

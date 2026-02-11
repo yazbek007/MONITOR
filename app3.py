@@ -134,7 +134,7 @@ class AppConfig:
 
     SIGNAL_THRESHOLDS = {
         SignalType.STRONG_BUY: 75,
-        SignalType.BUY: 64,
+        SignalType.BUY: 65,
         SignalType.NEUTRAL: 45,
         SignalType.SELL: 35,
         SignalType.STRONG_SELL: 25

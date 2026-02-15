@@ -102,25 +102,72 @@ class Notification:
 # ======================
 # إعدادات التطبيق
 # ======================
+# ======================
+# إعدادات التطبيق
+# ======================
 class AppConfig:
-    # العملات المدعومة (أهم 15 عملة)
-    COINS = [
-        CoinConfig("BTC/USDT", "Bitcoin", "BTC", "USDT"),
-        CoinConfig("ETH/USDT", "Ethereum", "ETH", "USDT"),
-        CoinConfig("BNB/USDT", "Binance Coin", "BNB", "USDT"),
-        CoinConfig("SOL/USDT", "Solana", "SOL", "USDT"),
-        CoinConfig("XRP/USDT", "Ripple", "XRP", "USDT"),
-        CoinConfig("ADA/USDT", "Cardano", "ADA", "USDT"),
-        CoinConfig("DOGE/USDT", "Dogecoin", "DOGE", "USDT"),
-        CoinConfig("AVAX/USDT", "Avalanche", "AVAX", "USDT"),
-        CoinConfig("DOT/USDT", "Polkadot", "DOT", "USDT"),
-        CoinConfig("MATIC/USDT", "Polygon", "MATIC", "USDT"),
-        CoinConfig("LINK/USDT", "Chainlink", "LINK", "USDT"),
-        CoinConfig("TRX/USDT", "TRON", "TRX", "USDT"),
-        CoinConfig("ZEC/USDT", "Zcash", "ZEC", "USDT"),
-        CoinConfig("LTC/USDT", "Litecoin", "LTC", "USDT"),
-        CoinConfig("BCH/USDT", "Bitcoin Cash", "BCH", "USDT"),
-    ]
+    # أضف هذه الدالة هنا
+    @staticmethod
+    def get_top_coins(limit=15):
+        """جلب أفضل العملات من حيث حجم التداول"""
+        try:
+            exchange = ccxt.binance()
+            tickers = exchange.fetch_tickers()
+            
+            # فلترة أزواج USDT
+            usdt_pairs = {k: v for k, v in tickers.items() 
+                         if k.endswith('/USDT') and v.get('quoteVolume')}
+            
+            # ترتيب حسب حجم التداول
+            sorted_pairs = sorted(usdt_pairs.items(), 
+                                key=lambda x: x[1]['quoteVolume'] or 0, 
+                                reverse=True)
+            
+            coins = []
+            # قائمة العملات المستبعدة (اختياري)
+            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA']
+            
+            for symbol, ticker in sorted_pairs[:limit]:
+                base = symbol.replace('/USDT', '')
+                # استبعاد العملات المشبوهة
+                if base not in EXCLUDED_COINS:
+                    coins.append(CoinConfig(symbol, base, base, 'USDT'))
+            
+            if coins:  # إذا وجدنا عملات
+                logger.info(f"✅ تم جلب {len(coins)} عملة من Binance")
+                return coins
+            else:
+                logger.warning("⚠️ لم نجد عملات، نستخدم القائمة الافتراضية")
+                return AppConfig._get_default_coins()
+                
+        except Exception as e:
+            logger.error(f"❌ خطأ في جلب العملات: {e}")
+            return AppConfig._get_default_coins()
+    
+    @staticmethod
+    def _get_default_coins():
+        """القائمة الافتراضية في حالة فشل الاتصال"""
+        return [
+            CoinConfig("BTC/USDT", "Bitcoin", "BTC", "USDT"),
+            CoinConfig("ETH/USDT", "Ethereum", "ETH", "USDT"),
+            CoinConfig("BNB/USDT", "Binance Coin", "BNB", "USDT"),
+            CoinConfig("SOL/USDT", "Solana", "SOL", "USDT"),
+            CoinConfig("XRP/USDT", "Ripple", "XRP", "USDT"),
+            CoinConfig("ADA/USDT", "Cardano", "ADA", "USDT"),
+            CoinConfig("DOGE/USDT", "Dogecoin", "DOGE", "USDT"),
+            CoinConfig("AVAX/USDT", "Avalanche", "AVAX", "USDT"),
+            CoinConfig("DOT/USDT", "Polkadot", "DOT", "USDT"),
+            CoinConfig("MATIC/USDT", "Polygon", "MATIC", "USDT"),
+            CoinConfig("LINK/USDT", "Chainlink", "LINK", "USDT"),
+            CoinConfig("TRX/USDT", "TRON", "TRX", "USDT"),
+            CoinConfig("ZEC/USDT", "Zcash", "ZEC", "USDT"),  # صححت الاسم
+            CoinConfig("LTC/USDT", "Litecoin", "LTC", "USDT"),
+            CoinConfig("BCH/USDT", "Bitcoin Cash", "BCH", "USDT"),
+        ]
+
+    # استبدل قائمة COINS الثابتة بهذا:
+    COINS = get_top_coins(15)  # استدعاء الدالة مباشرة
+    
 
     INDICATOR_WEIGHTS = {
         IndicatorType.TREND.value: 0.25,
@@ -646,6 +693,7 @@ class NotificationManager:
 class SignalManager:
     def __init__(self):
         self.signals: Dict[str, CoinSignal] = {}
+        self.last_coins_update = None
         self.history: List[Dict] = []
         self.last_update: Optional[datetime] = None
         self.fgi_fetcher = FearGreedFetcher()
@@ -655,11 +703,25 @@ class SignalManager:
         self.fear_greed_index = 50
         self.fear_greed_score = 0.5
 
+    
+    def update_coins_list(self):
+        """تحديث قائمة العملات كل ساعة"""
+        now = datetime.now()
+        if not self.last_coins_update or (now - self.last_coins_update).seconds > 3600:
+            new_coins = AppConfig.get_top_coins(15)
+            if new_coins:
+                # تحديث القائمة في AppConfig
+                AppConfig.COINS = new_coins
+                self.last_coins_update = now
+                logger.info(f"🔄 تم تحديث قائمة العملات: {len(new_coins)} عملة")
+
     def update_all(self) -> bool:
         with self.lock:
+            self.update_coins_list()
             logger.info(f"🔄 Updating {len(AppConfig.COINS)} coins...")
             success_count = 0
             self.fear_greed_score, self.fear_greed_index = self.fgi_fetcher.get()
+            
 
             for coin in AppConfig.COINS:
                 if not coin.enabled:

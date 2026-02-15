@@ -117,7 +117,7 @@ class AppConfig:
         CoinConfig("MATIC/USDT", "Polygon", "MATIC", "USDT"),
         CoinConfig("LINK/USDT", "Chainlink", "LINK", "USDT"),
         CoinConfig("TRX/USDT", "TRON", "TRX", "USDT"),
-        CoinConfig("ZEC/USDT", "Zec", "ZEC", "USDT"),
+        CoinConfig("ZEC/USDT", "Zcash", "ZEC", "USDT"),
         CoinConfig("LTC/USDT", "Litecoin", "LTC", "USDT"),
         CoinConfig("BCH/USDT", "Bitcoin Cash", "BCH", "USDT"),
     ]

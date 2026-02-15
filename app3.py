@@ -123,7 +123,7 @@ class AppConfig:
                                 reverse=True)
             
             coins = []
-            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA']
+            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA','USD1']
             
             for symbol, ticker in sorted_pairs[:limit]:
                 base = symbol.replace('/USDT', '')
@@ -322,6 +322,9 @@ class FearGreedFetcher:
 # ======================
 # Indicator Calculators (محسّنة لصالح إشارات الشراء)
 # ======================
+# ======================
+# Indicator Calculators (محسّنة لصالح إشارات الشراء) - نسخة مصححة
+# ======================
 class IndicatorCalculator:
     @staticmethod
     def sma(prices: List[float], period: int) -> List[Optional[float]]:
@@ -371,16 +374,18 @@ class IndicatorCalculator:
     def macd(prices: List[float], fast=12, slow=26, signal=9) -> Dict:
         """حساب MACD وإشارة التقاطع"""
         if len(prices) < slow + signal:
-            return {'histogram': 0, 'signal': 0, 'macd': 0}
+            return {'histogram': 0, 'signal': 0, 'macd': 0, 'prev_hist': 0}
         ema_fast = IndicatorCalculator.ema(prices, fast)
         ema_slow = IndicatorCalculator.ema(prices, slow)
         macd_line = [f - s for f, s in zip(ema_fast, ema_slow)]
         signal_line = IndicatorCalculator.ema(macd_line, signal)
         histogram = macd_line[-1] - signal_line[-1]
+        prev_histogram = macd_line[-2] - signal_line[-2] if len(macd_line) > 1 else 0
         return {
             'histogram': histogram,
             'signal': signal_line[-1],
-            'macd': macd_line[-1]
+            'macd': macd_line[-1],
+            'prev_hist': prev_histogram
         }
 
     # ================== المؤشرات المحسّنة ==================
@@ -390,260 +395,294 @@ class IndicatorCalculator:
         """تحسين اتجاه الشراء باستخدام EMAs متعددة وتقاطعاتها"""
         if len(close_prices) < 50:
             return 0.5
-        ema_9 = IndicatorCalculator.ema(close_prices, 9)[-1]
-        ema_21 = IndicatorCalculator.ema(close_prices, 21)[-1]
-        ema_50 = IndicatorCalculator.ema(close_prices, 50)[-1]
-        ema_200 = IndicatorCalculator.ema(close_prices, 200) if len(close_prices) >= 200 else None
+        try:
+            ema_9 = IndicatorCalculator.ema(close_prices, 9)[-1]
+            ema_21 = IndicatorCalculator.ema(close_prices, 21)[-1]
+            ema_50 = IndicatorCalculator.ema(close_prices, 50)[-1]
+            ema_200 = IndicatorCalculator.ema(close_prices, 200)[-1] if len(close_prices) >= 200 else None
 
-        current = close_prices[-1]
-        score = 0.0
+            current = close_prices[-1]
+            score = 0.0
 
-        # السعر فوق المتوسطات يعطي نقاط إيجابية
-        if current > ema_9: score += 0.15
-        if current > ema_21: score += 0.15
-        if current > ema_50: score += 0.15
-        if ema_200 and current > ema_200: score += 0.15
+            # السعر فوق المتوسطات يعطي نقاط إيجابية
+            if current > ema_9: score += 0.15
+            if current > ema_21: score += 0.15
+            if current > ema_50: score += 0.15
+            if ema_200 and current > ema_200: score += 0.15
 
-        # ترتيب المتوسطات (صعودي)
-        if ema_9 > ema_21 > ema_50:
-            score += 0.3
-        elif ema_9 < ema_21 < ema_50:
-            score -= 0.2
+            # ترتيب المتوسطات (صعودي)
+            if ema_9 > ema_21 > ema_50:
+                score += 0.3
+            elif ema_9 < ema_21 < ema_50:
+                score -= 0.2
 
-        # المسافة بين السعر والمتوسطات
-        dist_to_ema9 = (current - ema_9) / current
-        if dist_to_ema9 > 0.02:  # زخم قوي
-            score += 0.1
+            # المسافة بين السعر والمتوسطات
+            dist_to_ema9 = (current - ema_9) / current if current > 0 else 0
+            if dist_to_ema9 > 0.02:  # زخم قوي
+                score += 0.1
 
-        return max(0.0, min(1.0, (score + 1) / 2.5))  # تطبيع
+            return max(0.0, min(1.0, (score + 1) / 2.5))  # تطبيع
+        except Exception as e:
+            logger.error(f"Error in trend_strength: {e}")
+            return 0.5
 
     @staticmethod
     def momentum(close_prices: List[float]) -> float:
         """دمج RSI, MACD, ROC لقياس الزخم الشرائي"""
         if len(close_prices) < 30:
             return 0.5
+        try:
+            # RSI
+            rsi_vals = IndicatorCalculator.rsi(close_prices, 14)
+            last_rsi = rsi_vals[-1] if rsi_vals[-1] is not None else 50
+            if last_rsi < 30:
+                rsi_score = 0.9   # ذروة بيع -> شراء
+            elif last_rsi > 70:
+                rsi_score = 0.2   # ذروة شراء -> بيع (لكننا نركز على الشراء)
+            else:
+                rsi_score = 1.0 - (last_rsi / 100)  # كلما قل RSI زادت فرصة الشراء
 
-        # RSI
-        rsi_vals = IndicatorCalculator.rsi(close_prices, 14)
-        last_rsi = rsi_vals[-1] if rsi_vals[-1] is not None else 50
-        if last_rsi < 30:
-            rsi_score = 0.9   # ذروة بيع -> شراء
-        elif last_rsi > 70:
-            rsi_score = 0.2   # ذروة شراء -> بيع (لكننا نركز على الشراء)
-        else:
-            rsi_score = 1.0 - (last_rsi / 100)  # كلما قل RSI زادت فرصة الشراء
+            # MACD
+            macd_data = IndicatorCalculator.macd(close_prices)
+            hist = macd_data['histogram']
+            if hist > 0 and hist > macd_data.get('prev_hist', 0):
+                macd_score = 0.8   # تقاطع إيجابي
+            elif hist > 0:
+                macd_score = 0.6
+            elif hist < 0 and hist < macd_data.get('prev_hist', 0):
+                macd_score = 0.3   # زخم سلبي
+            else:
+                macd_score = 0.5
 
-        # MACD
-        macd_data = IndicatorCalculator.macd(close_prices)
-        hist = macd_data['histogram']
-        if hist > 0 and hist > macd_data.get('prev_hist', 0):
-            macd_score = 0.8   # تقاطع إيجابي
-        elif hist > 0:
-            macd_score = 0.6
-        elif hist < 0 and hist < macd_data.get('prev_hist', 0):
-            macd_score = 0.3   # زخم سلبي
-        else:
-            macd_score = 0.5
+            # ROC (معدل التغير)
+            roc_14 = (close_prices[-1] - close_prices[-14]) / close_prices[-14] * 100 if close_prices[-14] > 0 else 0
+            roc_score = max(0.0, min(1.0, (roc_14 + 5) / 15))  # تطبيع بين -5% و +10%
 
-        # ROC (معدل التغير)
-        roc_14 = (close_prices[-1] - close_prices[-14]) / close_prices[-14] * 100
-        roc_score = max(0.0, min(1.0, (roc_14 + 5) / 15))  # تطبيع بين -5% و +10%
-
-        # الجمع مع أوزان
-        return rsi_score * 0.5 + macd_score * 0.3 + roc_score * 0.2
+            # الجمع مع أوزان
+            return rsi_score * 0.5 + macd_score * 0.3 + roc_score * 0.2
+        except Exception as e:
+            logger.error(f"Error in momentum: {e}")
+            return 0.5
 
     @staticmethod
     def volume_analysis(volumes: List[float], close_prices: List[float]) -> float:
         """تحليل الحجم مع التركيز على التراكم واختراق الحجم"""
         if len(volumes) < 20:
             return 0.5
-        current_vol = volumes[-1]
-        avg_vol = sum(volumes[-20:]) / 20
-        ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
+        try:
+            current_vol = volumes[-1]
+            avg_vol = sum(volumes[-20:]) / 20
+            ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
 
-        # حجم مرتفع -> احتمال قوي
-        if ratio > 2.0:
-            score = 0.8
-        elif ratio > 1.5:
-            score = 0.7
-        elif ratio > 1.2:
-            score = 0.65
-        elif ratio > 1.0:
-            score = 0.6
-        elif ratio > 0.8:
-            score = 0.5
-        else:
-            score = 0.4
+            # حجم مرتفع -> احتمال قوي
+            if ratio > 2.0:
+                score = 0.8
+            elif ratio > 1.5:
+                score = 0.7
+            elif ratio > 1.2:
+                score = 0.65
+            elif ratio > 1.0:
+                score = 0.6
+            elif ratio > 0.8:
+                score = 0.5
+            else:
+                score = 0.4
 
-        # تحقق من اتجاه السعر مع الحجم
-        price_change = (close_prices[-1] - close_prices[-2]) / close_prices[-2]
-        if price_change > 0.01 and ratio > 1.2:
-            score += 0.2   # اختراق سعري بحجم كبير
-        elif price_change > 0 and ratio > 1:
-            score += 0.1
-        elif price_change < -0.01 and ratio > 1.2:
-            score -= 0.2   # بيع بحجم كبير (لا يشجع الشراء)
+            # تحقق من اتجاه السعر مع الحجم
+            price_change = (close_prices[-1] - close_prices[-2]) / close_prices[-2] if close_prices[-2] > 0 else 0
+            if price_change > 0.01 and ratio > 1.2:
+                score += 0.2   # اختراق سعري بحجم كبير
+            elif price_change > 0 and ratio > 1:
+                score += 0.1
+            elif price_change < -0.01 and ratio > 1.2:
+                score -= 0.2   # بيع بحجم كبير (لا يشجع الشراء)
 
-        # تراكم تدريجي (حجم متزايد)
-        if volumes[-1] > volumes[-2] > volumes[-3] > volumes[-4]:
-            score += 0.1
+            # تراكم تدريجي (حجم متزايد)
+            if len(volumes) >= 4 and volumes[-1] > volumes[-2] > volumes[-3] > volumes[-4]:
+                score += 0.1
 
-        return max(0.0, min(1.0, score))
+            return max(0.0, min(1.0, score))
+        except Exception as e:
+            logger.error(f"Error in volume_analysis: {e}")
+            return 0.5
 
     @staticmethod
     def volatility(high: List[float], low: List[float], close: List[float]) -> float:
         """تقلب السعر وموقعه من Bollinger Bands (الشراء عند القاع)"""
         if len(close) < 20:
             return 0.5
-        sma_20 = IndicatorCalculator.sma(close, 20)[-1]
-        std_dev = 0
-        for i in range(-20, 0):
-            std_dev += (close[i] - sma_20) ** 2
-        std_dev = math.sqrt(std_dev / 20)
-        upper = sma_20 + 2 * std_dev
-        lower = sma_20 - 2 * std_dev
+        try:
+            sma_20 = IndicatorCalculator.sma(close, 20)[-1]
+            if sma_20 is None:
+                return 0.5
+                
+            std_dev = 0
+            for i in range(-20, 0):
+                std_dev += (close[i] - sma_20) ** 2
+            std_dev = math.sqrt(std_dev / 20)
+            upper = sma_20 + 2 * std_dev
+            lower = sma_20 - 2 * std_dev
 
-        if upper == lower:
+            if upper == lower:
+                return 0.5
+
+            position = (close[-1] - lower) / (upper - lower)
+            # كلما اقترب من القاع (position صغير) كانت فرصة الشراء أفضل
+            if position < 0.2:
+                return 0.8   # قاع البولينجر -> ارتداد محتمل
+            if position > 0.8:
+                return 0.3   # قمة -> احتمال تصحيح
+            if position < 0.4:
+                return 0.6
             return 0.5
-
-        position = (close[-1] - lower) / (upper - lower)
-        # كلما اقترب من القاع (position صغير) كانت فرصة الشراء أفضل
-        if position < 0.2:
-            return 0.8   # قاع البولينجر -> ارتداد محتمل
-        if position > 0.8:
-            return 0.3   # قمة -> احتمال تصحيح
-        if position < 0.4:
-            return 0.6
-        return 0.5
+        except Exception as e:
+            logger.error(f"Error in volatility: {e}")
+            return 0.5
 
     @staticmethod
     def price_structure(high: List[float], low: List[float], close: List[float]) -> float:
         """هيكل سعري: قيعان صاعدة / قمم صاعدة"""
         if len(high) < 30:
             return 0.5
-        # قمم وقيعان آخر 30 شمعة
-        highs_30 = high[-30:]
-        lows_30 = low[-30:]
-        recent_high = max(highs_30)
-        recent_low = min(lows_30)
+        try:
+            # قمم وقيعان آخر 30 شمعة
+            highs_30 = high[-30:]
+            lows_30 = low[-30:]
 
-        # تحديد الاتجاه
-        higher_highs = highs_30[-1] > highs_30[-5] > highs_30[-10]
-        higher_lows = lows_30[-1] > lows_30[-5] > lows_30[-10]
+            # تحديد الاتجاه
+            higher_highs = highs_30[-1] > highs_30[-5] > highs_30[-10]
+            higher_lows = lows_30[-1] > lows_30[-5] > lows_30[-10]
 
-        if higher_highs and higher_lows:
-            return 0.8   # هيكل صعودي قوي
-        if higher_lows:
-            return 0.7   # قيعان صاعدة (إشارة شراء)
-        if not higher_highs and not higher_lows:
-            return 0.3   # هيكل هابط
-        return 0.5
+            if higher_highs and higher_lows:
+                return 0.8   # هيكل صعودي قوي
+            if higher_lows:
+                return 0.7   # قيعان صاعدة (إشارة شراء)
+            if not higher_highs and not higher_lows:
+                return 0.3   # هيكل هابط
+            return 0.5
+        except Exception as e:
+            logger.error(f"Error in price_structure: {e}")
+            return 0.5
 
     @staticmethod
     def support_resistance(high: List[float], low: List[float], close: List[float]) -> float:
         """تحديد القرب من مستويات دعم رئيسية (للبحث عن ارتداد)"""
         if len(high) < 40:
             return 0.5
-        highs = high[-40:]
-        lows = low[-40:]
-        resistance_candidates = []
-        support_candidates = []
+        try:
+            highs = high[-40:]
+            lows = low[-40:]
+            resistance_candidates = []
+            support_candidates = []
 
-        # قمم محلية
-        for i in range(2, len(highs) - 2):
-            if highs[i] > highs[i-1] and highs[i] > highs[i-2] and highs[i] > highs[i+1] and highs[i] > highs[i+2]:
-                resistance_candidates.append(highs[i])
-        # قيعان محلية
-        for i in range(2, len(lows) - 2):
-            if lows[i] < lows[i-1] and lows[i] < lows[i-2] and lows[i] < lows[i+1] and lows[i] < lows[i+2]:
-                support_candidates.append(lows[i])
+            # قمم محلية
+            for i in range(2, len(highs) - 2):
+                if highs[i] > highs[i-1] and highs[i] > highs[i-2] and highs[i] > highs[i+1] and highs[i] > highs[i+2]:
+                    resistance_candidates.append(highs[i])
+            # قيعان محلية
+            for i in range(2, len(lows) - 2):
+                if lows[i] < lows[i-1] and lows[i] < lows[i-2] and lows[i] < lows[i+1] and lows[i] < lows[i+2]:
+                    support_candidates.append(lows[i])
 
-        if not support_candidates and not resistance_candidates:
+            if not support_candidates and not resistance_candidates:
+                return 0.5
+
+            current = close[-1]
+            # أقرب دعم أقل من السعر
+            closest_support = max([s for s in support_candidates if s < current], default=None)
+            # أقرب مقاومة أعلى من السعر
+            closest_resistance = min([r for r in resistance_candidates if r > current], default=None)
+
+            if closest_support:
+                dist_to_support = (current - closest_support) / current if current > 0 else 0
+                if dist_to_support < 0.01:
+                    return 0.9   # قريب جداً من الدعم
+                if dist_to_support < 0.03:
+                    return 0.7
+            if closest_resistance:
+                dist_to_resistance = (closest_resistance - current) / current if current > 0 else 0
+                if dist_to_resistance < 0.01:
+                    return 0.2   # قريب من مقاومة
+                if dist_to_resistance < 0.03:
+                    return 0.3
             return 0.5
-
-        current = close[-1]
-        # أقرب دعم أقل من السعر
-        closest_support = max([s for s in support_candidates if s < current], default=None)
-        # أقرب مقاومة أعلى من السعر
-        closest_resistance = min([r for r in resistance_candidates if r > current], default=None)
-
-        if closest_support:
-            dist_to_support = (current - closest_support) / current
-            if dist_to_support < 0.01:
-                return 0.9   # قريب جداً من الدعم
-            if dist_to_support < 0.03:
-                return 0.7
-        if closest_resistance:
-            dist_to_resistance = (closest_resistance - current) / current
-            if dist_to_resistance < 0.01:
-                return 0.2   # قريب من مقاومة
-            if dist_to_resistance < 0.03:
-                return 0.3
-        return 0.5
+        except Exception as e:
+            logger.error(f"Error in support_resistance: {e}")
+            return 0.5
 
     @staticmethod
     def candle_pattern(open_prices: List[float], high: List[float], low: List[float], close: List[float]) -> float:
         """الكشف عن أنماط الشموع اليابانية التي تشير إلى انعكاس صعودي"""
         if len(close) < 5:
             return 0.5
+        try:
+            # الشموع الثلاث الأخيرة
+            o1, o2, o3 = open_prices[-1], open_prices[-2], open_prices[-3]
+            h1, h2, h3 = high[-1], high[-2], high[-3]
+            l1, l2, l3 = low[-1], low[-2], low[-3]
+            c1, c2, c3 = close[-1], close[-2], close[-3]
 
-        # الشموع الثلاث الأخيرة
-        o1, o2, o3 = open_prices[-1], open_prices[-2], open_prices[-3]
-        h1, h2, h3 = high[-1], high[-2], high[-3]
-        l1, l2, l3 = low[-1], low[-2], low[-3]
-        c1, c2, c3 = close[-1], close[-2], close[-3]
+            score = 0.5
 
-        score = 0.5
+            # 1. نمط المطرقة (Hammer)
+            body1 = abs(c1 - o1)
+            lower_shadow1 = min(c1, o1) - l1
+            upper_shadow1 = h1 - max(c1, o1)
+            if lower_shadow1 > 2 * body1 and upper_shadow1 < 0.3 * body1 and c1 > o1:
+                score += 0.3  # مطرقة صاعدة
 
-        # 1. نمط المطرقة (Hammer)
-        body1 = abs(c1 - o1)
-        lower_shadow1 = min(c1, o1) - l1
-        upper_shadow1 = h1 - max(c1, o1)
-        if lower_shadow1 > 2 * body1 and upper_shadow1 < 0.3 * body1 and c1 > o1:
-            score += 0.3  # مطرقة صاعدة
+            # 2. نمط الابتلاع الصاعد (Bullish Engulfing)
+            if c2 < o2 and c1 > o1 and c1 > o2 and o1 < c2:
+                score += 0.4
 
-        # 2. نمط الابتلاع الصاعد (Bullish Engulfing)
-        if c2 < o2 and c1 > o1 and c1 > o2 and o1 < c2:
-            score += 0.4
+            # 3. نمط نجمة الصباح (Morning Star) - ثلاث شموع
+            if c2 < o2 and abs(c2 - o2) > 0.02 * c2:  # شمعة هابطة كبيرة
+                if abs(c1 - o1) < 0.01 * c1:  # شمعة دوجي صغيرة
+                    if c3 > o3 and c3 > (c2 + o2)/2:  # شمعة صاعدة تخترق منتصف الأولى
+                        score += 0.5
 
-        # 3. نمط نجمة الصباح (Morning Star) - ثلاث شموع
-        if c2 < o2 and abs(c2 - o2) > 0.02 * c2:  # شمعة هابطة كبيرة
-            if abs(c1 - o1) < 0.01 * c1:  # شمعة دوجي صغيرة
-                if c3 > o3 and c3 > (c2 + o2)/2:  # شمعة صاعدة تخترق منتصف الأولى
-                    score += 0.5
+            # 4. نمط الارتطام (Piercing Line)
+            if c2 < o2 and c1 > o1 and o1 < c2 and c1 > (c2 + o2)/2 and c1 < o2:
+                score += 0.3
 
-        # 4. نمط الارتطام (Piercing Line)
-        if c2 < o2 and c1 > o1 and o1 < c2 and c1 > (c2 + o2)/2 and c1 < o2:
-            score += 0.3
-
-        return min(1.0, score)
+            return min(1.0, score)
+        except Exception as e:
+            logger.error(f"Error in candle_pattern: {e}")
+            return 0.5
 
     @staticmethod
-    def buying_pressure(close: List[float], volume: List[float]) -> float:
+    def buying_pressure(close: List[float], volume: List[float], high: List[float] = None, low: List[float] = None) -> float:
         """قياس الضغط الشرائي من خلال حجم التداول بالنسبة لحركة السعر"""
         if len(close) < 10:
             return 0.5
+        try:
+            # إذا لم يتم تمرير high/low، نستخدم close كتقريب
+            if high is None:
+                high = close
+            if low is None:
+                low = close
+                
+            # حساب التدفق المالي التقريبي
+            money_flow = [c * v for c, v in zip(close, volume)]
 
-        # مؤشر تدفق الأموال (Money Flow Index) مبسط
-        typical_price = [(h + l + c) / 3 for h, l, c in zip(high, low, close)]  # لكننا لا نملك high/low هنا
-        # نستخدم close كبديل تقريبي
-        money_flow = [c * v for c, v in zip(close, volume)]
+            # اتجاه الضغط الشرائي
+            positive_flow = 0
+            negative_flow = 0
+            for i in range(1, len(close)):
+                if close[i] > close[i-1]:
+                    positive_flow += money_flow[i]
+                else:
+                    negative_flow += money_flow[i]
 
-        # اتجاه الضغط الشرائي
-        positive_flow = 0
-        negative_flow = 0
-        for i in range(1, len(close)):
-            if close[i] > close[i-1]:
-                positive_flow += money_flow[i]
-            else:
-                negative_flow += money_flow[i]
-
-        if negative_flow == 0:
-            return 1.0
-        ratio = positive_flow / negative_flow
-        # تطبيع: كلما زادت النسبة زاد الضغط الشرائي
-        score = min(1.0, ratio / 3)  # نسبة 3 تعطي 1
-        return score
+            if negative_flow == 0:
+                return 1.0
+            ratio = positive_flow / negative_flow
+            # تطبيع: كلما زادت النسبة زاد الضغط الشرائي
+            score = min(1.0, ratio / 3)  # نسبة 3 تعطي 1
+            return score
+        except Exception as e:
+            logger.error(f"Error in buying_pressure: {e}")
+            return 0.5
 
 # ======================
 # Signal Processor

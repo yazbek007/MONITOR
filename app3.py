@@ -108,7 +108,7 @@ class Notification:
 class AppConfig:
     # أضف هذه الدالة هنا
     @staticmethod
-    def get_top_coins(limit=15):
+    def get_top_coins(limit=10):
         """جلب أفضل العملات من حيث حجم التداول"""
         try:
             exchange = ccxt.binance()
@@ -125,7 +125,7 @@ class AppConfig:
             
             coins = []
             # قائمة العملات المستبعدة (اختياري)
-            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA']
+            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA','USDC']
             
             for symbol, ticker in sorted_pairs[:limit]:
                 base = symbol.replace('/USDT', '')

@@ -123,7 +123,7 @@ class AppConfig:
                                 reverse=True)
             
             coins = []
-            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA','USD1']
+            EXCLUDED_COINS = ['LUNA', 'UST', 'FTT', 'TERRA','USD1','USDC']
             
             for symbol, ticker in sorted_pairs[:limit]:
                 base = symbol.replace('/USDT', '')

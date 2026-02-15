@@ -180,7 +180,7 @@ class AppConfig:
     # تعديل العتبات لجعل إشارات الشراء أكثر حساسية (خفض عتبات الشراء)
     SIGNAL_THRESHOLDS = {
         SignalType.STRONG_BUY: 75,    # كانت 80
-        SignalType.BUY: 65,           # كانت 70
+        SignalType.BUY: 60,           # كانت 70
         SignalType.NEUTRAL: 45,       # كانت 50
         SignalType.SELL: 35,           # كانت 40
         SignalType.STRONG_SELL: 25     # كانت 30

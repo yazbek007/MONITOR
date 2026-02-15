@@ -117,7 +117,7 @@ class AppConfig:
         CoinConfig("MATIC/USDT", "Polygon", "MATIC", "USDT"),
         CoinConfig("LINK/USDT", "Chainlink", "LINK", "USDT"),
         CoinConfig("TRX/USDT", "TRON", "TRX", "USDT"),
-        CoinConfig("ATOM/USDT", "Cosmos", "ATOM", "USDT"),
+        CoinConfig("ZEC/USDT", "Zec", "ZEC", "USDT"),
         CoinConfig("LTC/USDT", "Litecoin", "LTC", "USDT"),
         CoinConfig("BCH/USDT", "Bitcoin Cash", "BCH", "USDT"),
     ]
@@ -133,11 +133,11 @@ class AppConfig:
     }
 
     SIGNAL_THRESHOLDS = {
-        SignalType.STRONG_BUY: 75,
+        SignalType.STRONG_BUY: 80,
         SignalType.BUY: 65,
-        SignalType.NEUTRAL: 45,
-        SignalType.SELL: 35,
-        SignalType.STRONG_SELL: 25
+        SignalType.NEUTRAL: 50,
+        SignalType.SELL: 40,
+        SignalType.STRONG_SELL: 30
     }
 
     UPDATE_INTERVAL = 120  # 2 minutes

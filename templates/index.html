@@ -9,8 +9,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <!-- Google Fonts: Inter + Space Grotesk -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <!-- Chart.js (optional for mini sparklines) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
             font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -205,6 +203,28 @@
             border-color: #2E86AB;
             box-shadow: 0 0 5px #2E86AB;
         }
+        /* Time factor card style */
+        .time-factor-card {
+            background: linear-gradient(145deg, #1e1e2a, #12121c);
+            border-radius: 28px;
+            padding: 0.8rem 1.2rem;
+            border: 1px solid rgba(59, 178, 115, 0.4);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.4);
+        }
+        .time-factor-score {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .time-factor-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .tooltip-custom {
+            cursor: help;
+            border-bottom: 1px dotted rgba(255,255,255,0.3);
+        }
     </style>
 </head>
 <body>
@@ -276,6 +296,38 @@
                     <div>
                         <small class="text-secondary-emphasis">Buy Alerts Sent</small>
                         <h3 class="mb-0 fw-bold" id="stat-notify">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Factor Decision Support (BUY edition) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="time-factor-card d-flex flex-wrap justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-clock-history fs-2" style="color: #3BB273;"></i>
+                        <div>
+                            <div class="time-factor-label text-secondary">TIME FACTOR · SYRIA TIME</div>
+                            <div class="d-flex align-items-baseline gap-2">
+                                <span id="currentTimeSyria" class="fw-semibold fs-5">--:-- --</span>
+                                <span id="timeFactorBadge" class="badge" style="background:#3BB273;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column flex-grow-1 mx-3">
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span>Bullish Favorability</span>
+                            <span id="factorScoreValue" class="fw-bold">0%</span>
+                        </div>
+                        <div class="progress-indicator" style="height: 10px;">
+                            <div id="factorProgressBar" class="h-100" style="width:0%; background: linear-gradient(90deg, #2E86AB, #3BB273); border-radius: 10px;"></div>
+                        </div>
+                        <div id="factorRecommendation" class="small text-secondary mt-1 tooltip-custom" title="Based on historical intraday & weekly patterns (UTC+3)">Loading time analysis...</div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-secondary d-block">Confidence</small>
+                        <span id="confidenceLevel" class="fw-bold" style="color:#3BB273;">—</span>
                     </div>
                 </div>
             </div>
@@ -389,7 +441,91 @@
         let currentSort = { column: 'strength', direction: 'desc' };
         let searchTerm = '';
 
-        // ---------- Fetch all data ----------
+        // ---------- Time Factor Logic (for BUY) ----------
+        function getSyriaTime() {
+            return new Date().toLocaleString('en-US', { timeZone: 'Asia/Damascus' });
+        }
+
+        function getTimeFactor() {
+            const syriaDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Damascus' }));
+            const hour = syriaDate.getHours();
+            const day = syriaDate.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+            // Intraday score for BUY: positive when historically prices rise
+            let intradayScore = 0;
+            if (hour >= 0 && hour < 4) intradayScore = -1.2;   // Late night: often lower prices, not ideal for buy
+            else if (hour >= 4 && hour < 8) intradayScore = -0.5; // Early morning: mixed
+            else if (hour >= 8 && hour < 12) intradayScore = 0.5; // Asian session: moderate
+            else if (hour >= 12 && hour < 16) intradayScore = 1.5; // US/EU overlap: high liquidity, bullish bias
+            else if (hour >= 16 && hour < 20) intradayScore = 0.8; // Afternoon: still decent
+            else if (hour >= 20 && hour < 24) intradayScore = 0.2; // Evening: neutral
+
+            // Weekly score for BUY: best at start of week
+            let weeklyScore = 0;
+            if (day === 1 || day === 2) weeklyScore = 1.2;   // Monday, Tuesday: strong bullish
+            else if (day === 3 || day === 4) weeklyScore = 0.4; // Wednesday, Thursday: moderate
+            else if (day === 5 || day === 6) weeklyScore = -0.8; // Friday, Saturday: often weaker
+            else if (day === 0) weeklyScore = -0.2;               // Sunday: slightly weak
+
+            let totalScore = intradayScore + weeklyScore;
+            totalScore = Math.min(2, Math.max(-2, totalScore));
+            let percent = ((totalScore + 2) / 4) * 100;
+            percent = Math.round(percent);
+
+            let recommendation = "";
+            let confidence = "";
+            let badgeText = "";
+            let badgeClass = "";
+            if (percent >= 75) {
+                recommendation = "Excellent time for BUY entries (historical pattern)";
+                confidence = "High";
+                badgeText = "Strong Favorability";
+                badgeClass = "bg-success";
+            } else if (percent >= 55) {
+                recommendation = "Moderately favorable for buying";
+                confidence = "Medium";
+                badgeText = "Favorable";
+                badgeClass = "bg-info text-dark";
+            } else if (percent >= 40) {
+                recommendation = "Neutral - no clear historical edge";
+                confidence = "Low";
+                badgeText = "Neutral";
+                badgeClass = "bg-secondary";
+            } else {
+                recommendation = "Avoid buying now (historically weak periods)";
+                confidence = "Medium";
+                badgeText = "Unfavorable";
+                badgeClass = "bg-warning text-dark";
+            }
+
+            return {
+                percent: percent,
+                recommendation: recommendation,
+                confidence: confidence,
+                badgeText: badgeText,
+                badgeClass: badgeClass,
+                hour: hour,
+                day: day
+            };
+        }
+
+        function updateTimeFactorDisplay() {
+            const syriaDate = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Damascus' }));
+            const timeStr = syriaDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            const dayName = syriaDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Damascus' });
+            document.getElementById('currentTimeSyria').innerHTML = `${timeStr} · ${dayName}`;
+
+            const factor = getTimeFactor();
+            document.getElementById('factorScoreValue').innerText = factor.percent + '%';
+            document.getElementById('factorProgressBar').style.width = factor.percent + '%';
+            document.getElementById('factorRecommendation').innerHTML = factor.recommendation;
+            document.getElementById('confidenceLevel').innerHTML = factor.confidence;
+            const badgeSpan = document.getElementById('timeFactorBadge');
+            badgeSpan.innerText = factor.badgeText;
+            badgeSpan.className = `badge ${factor.badgeClass}`;
+        }
+
+        // ---------- Original fetch and UI functions (unchanged except time factor integration) ----------
         async function fetchAllData() {
             try {
                 const [signalsRes, healthRes, notifRes] = await Promise.all([
@@ -414,7 +550,6 @@
                 stats.btc_bullish = healthData.btc_bullish === true;
                 stats.fear_greed_index = healthData.fear_greed || 50;
 
-                // Update BTC badge & FGI
                 const btcSpan = document.getElementById('btcTrendStatus');
                 if (btcSpan) {
                     if (stats.btc_bullish) {
@@ -499,7 +634,6 @@
                 const changeClass = coin.price_change_24h >= 0 ? 'text-success' : 'text-danger';
                 const changeIcon = coin.price_change_24h >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short';
                 
-                // Find highest active indicator (raw_score 1)
                 let activeIndicators = (coin.indicators || []).filter(ind => ind.raw_score === 100);
                 let topIndicator = activeIndicators.length ? activeIndicators[0] : (coin.indicators?.[0] || null);
                 let indicatorShort = topIndicator ? (topIndicator.display_name.split(' ')[0] + ' ' + (topIndicator.display_name.includes('RSI') ? 'RSI' : '')) : '--';
@@ -559,7 +693,6 @@
             container.innerHTML = html;
         }
 
-        // Show detailed 4 indicator breakdown
         window.showDetail = function(symbol) {
             const coin = coinsData.find(c => c.symbol === symbol);
             if (!coin) return;
@@ -606,13 +739,11 @@
             document.getElementById('detailPanel').style.display = 'none';
         };
 
-        // Search input handler
         document.getElementById('searchInput').addEventListener('input', function(e) {
             searchTerm = e.target.value;
             applyFilterAndSort();
         });
 
-        // Manual refresh
         document.getElementById('manualRefreshBtn').addEventListener('click', function(e) {
             const btn = e.currentTarget;
             btn.disabled = true;
@@ -630,10 +761,11 @@
                 });
         });
 
-        // Auto refresh every 120 seconds
+        // Update time factor every minute and on load
+        setInterval(updateTimeFactorDisplay, 60000);
+        updateTimeFactorDisplay();
+
         setInterval(fetchAllData, 120000);
-        
-        // Initial load
         fetchAllData();
     </script>
 </body>

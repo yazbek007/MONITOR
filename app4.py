@@ -1,6 +1,6 @@
 """
 Crypto Signal Analyzer Bot - Simplified BUY Edition
-Version 5.0.0 - Focused on 4 key bullish indicators
+Version 5.0.1 - Enhanced: real indicators even when BTC filter off
 All notifications in English, no emojis.
 """
 
@@ -59,9 +59,9 @@ class CoinConfig:
 @dataclass
 class IndicatorScore:
     name: str
-    raw_score: float      # 0 or 1
+    raw_score: float
     weighted_score: float
-    percentage: float      # raw_score * 100
+    percentage: float
     weight: float
     description: str
     color: str
@@ -75,13 +75,13 @@ class CoinSignal:
     high_24h: float
     low_24h: float
     volume_24h: float
-    total_percentage: float   # bull score (0-100)
+    total_percentage: float
     signal_type: SignalType
     signal_strength: str
     signal_color: str
     indicator_scores: Dict[str, IndicatorScore]
     last_updated: datetime
-    fear_greed_value: int     # kept for display only
+    fear_greed_value: int
     is_valid: bool = True
     error_message: Optional[str] = None
 
@@ -97,10 +97,9 @@ class Notification:
     price: float
 
 # ======================
-# Application Configuration (simplified)
+# Application Configuration
 # ======================
 class AppConfig:
-    # Static coin list (BTC, ETH, BNB, SOL, XRP, LTC)
     COINS = [
         CoinConfig("BTC/USDT", "Bitcoin", "BTC", "USDT"),
         CoinConfig("ETH/USDT", "Ethereum", "ETH", "USDT"),
@@ -110,16 +109,14 @@ class AppConfig:
         CoinConfig("LTC/USDT", "Litecoin", "LTC", "USDT"),
     ]
 
-    # Signal thresholds: total score from 0 to 4
     SIGNAL_THRESHOLDS = {
-        SignalType.STRONG_BUY: 3,   # 3 or 4 indicators trigger strong buy
-        SignalType.BUY: 2,          # exactly 2 indicators trigger buy
+        SignalType.STRONG_BUY: 3,
+        SignalType.BUY: 2,
     }
 
-    UPDATE_INTERVAL = 120           # 2 minutes
-    MAX_CANDLES = 100               # reduced from 200
+    UPDATE_INTERVAL = 120
+    MAX_CANDLES = 100
 
-    # Colors for the four indicators
     INDICATOR_COLORS = {
         IndicatorType.TREND.value: '#2E86AB',
         IndicatorType.MOMENTUM.value: '#A23B72',
@@ -184,7 +181,7 @@ class BinanceClient:
         return ticker['last'] if ticker else 0.0
 
 # ======================
-# Fear & Greed Index Fetcher (kept for display only)
+# Fear & Greed Index Fetcher
 # ======================
 class FearGreedFetcher:
     def __init__(self):
@@ -192,7 +189,7 @@ class FearGreedFetcher:
         self.last_update = None
         self.cache_ttl = 300
 
-    def get(self) -> Tuple[int, int]:   # return (value, raw_value)
+    def get(self) -> Tuple[int, int]:
         now = datetime.now()
         if self.last_update and (now - self.last_update).total_seconds() < self.cache_ttl:
             return self.last_value, self.last_value
@@ -212,7 +209,7 @@ class FearGreedFetcher:
         return self.last_value, self.last_value
 
 # ======================
-# Simplified Indicator Calculators
+# Indicator Calculators
 # ======================
 class IndicatorCalculator:
     @staticmethod
@@ -249,11 +246,8 @@ class IndicatorCalculator:
                 avg_loss = (avg_loss * (period - 1) + losses[i]) / period
         return rsi_values
 
-    # ===== Simplified indicators returning 0 or 1 =====
-
     @staticmethod
     def bullish_trend(close_prices: List[float]) -> int:
-        """Price > EMA50 > EMA200 → 1, else 0"""
         if len(close_prices) < 200:
             return 0
         try:
@@ -268,7 +262,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def oversold_rsi(close_prices: List[float]) -> int:
-        """RSI < 40 → 1, RSI < 30 gives extra but still 1"""
         if len(close_prices) < 14:
             return 0
         try:
@@ -282,7 +275,6 @@ class IndicatorCalculator:
 
     @staticmethod
     def volume_surge(volumes: List[float], close_prices: List[float]) -> int:
-        """Volume > average (20) and price rising → 1"""
         if len(volumes) < 20 or len(close_prices) < 2:
             return 0
         try:
@@ -297,11 +289,10 @@ class IndicatorCalculator:
 
     @staticmethod
     def breakout(highs: List[float], close_prices: List[float]) -> int:
-        """Price breaks the highest high of last 20 candles → 1"""
         if len(highs) < 20:
             return 0
         try:
-            recent_highs = highs[-20:-1]   # exclude current candle
+            recent_highs = highs[-20:-1]
             resistance = max(recent_highs)
             if close_prices[-1] > resistance:
                 return 1
@@ -310,19 +301,14 @@ class IndicatorCalculator:
             return 0
 
 # ======================
-# Simple Signal Processor
+# Signal Processor
 # ======================
 class SignalProcessor:
     @staticmethod
     def process(indicator_scores: Dict[str, int]) -> Dict:
-        """
-        indicator_scores: dict with keys TREND, MOMENTUM, VOLUME, STRUCTURE,
-        each value 0 or 1.
-        """
         total_score = sum(indicator_scores.values())
         total_percentage = (total_score / len(indicator_scores)) * 100
 
-        # Determine signal type
         if total_score >= AppConfig.SIGNAL_THRESHOLDS[SignalType.STRONG_BUY]:
             signal_type = SignalType.STRONG_BUY
         elif total_score >= AppConfig.SIGNAL_THRESHOLDS[SignalType.BUY]:
@@ -333,7 +319,6 @@ class SignalProcessor:
         signal_strength = SignalProcessor.get_signal_strength(total_score)
         signal_color = SignalProcessor.get_signal_color(signal_type)
 
-        # Create IndicatorScore objects for display
         weighted_scores = {}
         for name, raw in indicator_scores.items():
             weighted_scores[name] = IndicatorScore(
@@ -374,14 +359,14 @@ class SignalProcessor:
         return mapping.get(signal_type, "secondary")
 
 # ======================
-# Notification Manager (reduced spam)
+# Notification Manager
 # ======================
 class NotificationManager:
     def __init__(self):
         self.history: List[Notification] = []
         self.max_history = 50
         self.last_notification_time = {}
-        self.min_interval = 600  # 10 minutes to avoid spam
+        self.min_interval = 600
 
     def add(self, notification: Notification):
         self.history.append(notification)
@@ -394,13 +379,11 @@ class NotificationManager:
     def should_send(self, coin_symbol: str, total_score: int, signal_type: SignalType) -> bool:
         if signal_type not in [SignalType.BUY, SignalType.STRONG_BUY]:
             return False
-
         now = datetime.now()
         if coin_symbol in self.last_notification_time:
             delta = now - self.last_notification_time[coin_symbol]
             if delta.total_seconds() < self.min_interval:
                 return False
-
         return True
 
     def send_ntfy(self, message: str, title: str = "Crypto Buy Signal", priority: str = "3", tags: str = "chart") -> bool:
@@ -424,7 +407,7 @@ class NotificationManager:
             return False
 
     def create_notification(self, coin_signal: CoinSignal) -> Optional[Notification]:
-        total_score = int(round(coin_signal.total_percentage / 100 * 4))  # 4 indicators
+        total_score = int(round(coin_signal.total_percentage / 100 * 4))
         if not self.should_send(coin_signal.symbol, total_score, coin_signal.signal_type):
             return None
 
@@ -466,7 +449,7 @@ class NotificationManager:
         return None
 
 # ======================
-# Signal Manager
+# Signal Manager (BUY)
 # ======================
 class SignalManager:
     def __init__(self):
@@ -478,10 +461,9 @@ class SignalManager:
         self.notification_manager = NotificationManager()
         self.fgi_fetcher = FearGreedFetcher()
         self.fear_greed_index = 50
-        self.btc_bullish = False   # BTC trend filter
+        self.btc_bullish = False
 
     def check_btc_trend(self) -> bool:
-        """Check if BTC is in bullish trend: price > EMA50 > EMA200"""
         try:
             ohlcv = self.binance.fetch_ohlcv("BTC/USDT", '15m', 200)
             if not ohlcv or len(ohlcv) < 200:
@@ -500,11 +482,9 @@ class SignalManager:
     def update_all(self) -> bool:
         with self.lock:
             logger.info(f"Updating {len(AppConfig.COINS)} coins for BUY signals...")
-            # First, check BTC trend
             self.btc_bullish = self.check_btc_trend()
             logger.info(f"BTC bullish trend: {self.btc_bullish}")
 
-            # Update Fear & Greed for display
             fgi_raw, self.fear_greed_index = self.fgi_fetcher.get()
 
             success_count = 0
@@ -516,7 +496,6 @@ class SignalManager:
                     if signal and signal.is_valid:
                         self.signals[coin.symbol] = signal
                         success_count += 1
-                        # Only send notifications if BTC is bullish
                         if self.btc_bullish:
                             self.notification_manager.create_notification(signal)
                 except Exception as e:
@@ -546,7 +525,7 @@ class SignalManager:
         low_24h = ticker.get('low', 0.0)
         volume_24h = ticker.get('quoteVolume', 0.0)
 
-        # Calculate four indicators (0/1)
+        # Calculate real indicator scores (0/1)
         scores = {
             IndicatorType.TREND.value: IndicatorCalculator.bullish_trend(closes),
             IndicatorType.MOMENTUM.value: IndicatorCalculator.oversold_rsi(closes),
@@ -554,14 +533,36 @@ class SignalManager:
             IndicatorType.STRUCTURE.value: IndicatorCalculator.breakout(highs, closes),
         }
 
-        # If BTC is not bullish, force all scores to 0 (no buy signals)
-        if not self.btc_bullish:
-            scores = {k: 0 for k in scores}
+        # Real total percentage based on active indicators
+        real_total_percentage = (sum(scores.values()) / len(scores)) * 100
 
-        # Process scores
-        result = SignalProcessor.process(scores)
+        # Determine final signal based on BTC filter
+        if self.btc_bullish:
+            result = SignalProcessor.process(scores)
+            total_percentage = result['total_percentage']
+            signal_type = result['signal_type']
+            signal_strength = result['signal_strength']
+            signal_color = result['signal_color']
+        else:
+            # BTC not bullish: keep real scores and percentage but force NEUTRAL signal
+            total_percentage = real_total_percentage
+            signal_type = SignalType.NEUTRAL
+            signal_strength = "Neutral (BTC not bullish)"
+            signal_color = "secondary"
+            # scores remain unchanged; they will be displayed as real
 
-        # Create CoinSignal
+        indicator_scores = {}
+        for name, raw in scores.items():
+            indicator_scores[name] = IndicatorScore(
+                name=name,
+                raw_score=raw,
+                weighted_score=raw,
+                percentage=raw * 100,
+                weight=1.0,
+                description=AppConfig.INDICATOR_DESCRIPTIONS.get(name, ''),
+                color=AppConfig.INDICATOR_COLORS.get(name, '#2E86AB')
+            )
+
         return CoinSignal(
             symbol=coin.symbol,
             name=coin.name,
@@ -570,11 +571,11 @@ class SignalManager:
             high_24h=high_24h,
             low_24h=low_24h,
             volume_24h=volume_24h,
-            total_percentage=result['total_percentage'],
-            signal_type=result['signal_type'],
-            signal_strength=result['signal_strength'],
-            signal_color=result['signal_color'],
-            indicator_scores=result['weighted_scores'],
+            total_percentage=total_percentage,
+            signal_type=signal_type,
+            signal_strength=signal_strength,
+            signal_color=signal_color,
+            indicator_scores=indicator_scores,
             last_updated=datetime.now(),
             fear_greed_value=self.fear_greed_index,
             is_valid=True
@@ -689,9 +690,9 @@ class SignalManager:
         valid = [c for c in coins if c['is_valid']]
         percentages = [c['total_percentage'] for c in valid]
 
-        strong_buy = sum(1 for c in valid if c['total_percentage'] >= 75)  # 3/4
-        buy = sum(1 for c in valid if 50 <= c['total_percentage'] < 75)    # 2/4
-        neutral = sum(1 for c in valid if 25 <= c['total_percentage'] < 50) # 1/4
+        strong_buy = sum(1 for c in valid if c['total_percentage'] >= 75)
+        buy = sum(1 for c in valid if 50 <= c['total_percentage'] < 75)
+        neutral = sum(1 for c in valid if 25 <= c['total_percentage'] < 50)
         sell = sum(1 for c in valid if 0 < c['total_percentage'] < 25)
         strong_sell = sum(1 for c in valid if c['total_percentage'] == 0)
 
@@ -770,7 +771,7 @@ def index():
         coins=coins,
         stats=stats,
         notifications=notifications,
-        indicator_weights={}  # weights removed
+        indicator_weights={}
     )
 
 @app.route('/api/signals')
@@ -822,14 +823,11 @@ def test_ntfy():
     success = signal_manager.notification_manager.send_ntfy(msg, "Buy Test", "3", "test_tube")
     return jsonify({'success': success})
 
-# ======================
-# Startup notification (English, no emoji)
-# ======================
 def send_startup_notification():
     try:
         msg = (
             f"Crypto BUY Signal Analyzer Started (Simplified Edition)\n"
-            f"Version: 5.0.0\n"
+            f"Version: 5.0.1\n"
             f"Tracking {len(AppConfig.COINS)} coins\n"
             f"Update interval: {AppConfig.UPDATE_INTERVAL//60} minutes\n"
             f"Indicators: Trend, RSI, Volume, Structure"
@@ -844,12 +842,9 @@ def delayed_startup():
 
 threading.Thread(target=delayed_startup, daemon=True).start()
 
-# ======================
-# Main
-# ======================
 if __name__ == '__main__':
     logger.info("=" * 50)
-    logger.info("Crypto BUY Signal Analyzer v5.0.0 (Simplified Bullish Edition)")
+    logger.info("Crypto BUY Signal Analyzer v5.0.1 (Enhanced Bullish Edition)")
     logger.info(f"Coins: {len(AppConfig.COINS)}")
     logger.info(f"Update every {AppConfig.UPDATE_INTERVAL//60} minutes")
     logger.info(f"NTFY: {ExternalAPIConfig.NTFY_URL}")

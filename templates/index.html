@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Bullish Edge · Crypto BUY Signal Analyzer</title>
+    <!-- Bootstrap 5 + Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Google Fonts: Inter + Space Grotesk -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js (optional for mini sparklines) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: #0a0a12;
+            background-image: radial-gradient(circle at 15% 30%, rgba(46, 134, 171, 0.12) 0%, transparent 30%),
+                              radial-gradient(circle at 85% 70%, rgba(162, 59, 114, 0.08) 0%, transparent 35%);
+            color: #e2e2f0;
+            padding-bottom: 2rem;
+        }
+        h1, h2, h3, h4, h5, .navbar-brand {
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        .navbar-brand {
+            background: linear-gradient(145deg, #2E86AB, #1e6f8f);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.7rem;
+        }
+        .glass-card {
+            background: rgba(18, 18, 30, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(46, 134, 171, 0.25);
+            border-radius: 32px;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .glass-card:hover {
+            border-color: rgba(46, 134, 171, 0.6);
+        }
+        .stat-card {
+            background: rgba(28, 28, 42, 0.7);
+            border-radius: 24px;
+            padding: 1.3rem 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            transition: 0.2s;
+            backdrop-filter: blur(4px);
+        }
+        .stat-card:hover {
+            background: rgba(38, 38, 55, 0.9);
+            border-color: #2E86AB80;
+        }
+        .signal-badge {
+            font-weight: 700;
+            padding: 0.4rem 1rem;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            border: 1px solid transparent;
+        }
+        .signal-badge.strong-buy { background: rgba(59, 178, 115, 0.25); color: #b3ffd8; border-color: #3BB273; }
+        .signal-badge.buy { background: rgba(46, 134, 171, 0.25); color: #b3e4ff; border-color: #2E86AB; }
+        .signal-badge.neutral { background: rgba(90, 90, 112, 0.25); color: #cfcfff; border-color: #7f8c8d; }
+        .signal-badge.sell { background: rgba(162, 59, 114, 0.25); color: #ffc0e0; border-color: #A23B72; }
+        .signal-badge.strong-sell { background: rgba(200, 60, 60, 0.25); color: #ffadad; border-color: #c0392b; }
+
+        .progress-indicator {
+            height: 8px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px #00000030;
+        }
+        .indicator-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 4px;
+            margin-right: 8px;
+            box-shadow: 0 2px 6px currentColor;
+        }
+        .notification-item {
+            background: rgba(30, 30, 48, 0.6);
+            border-radius: 20px;
+            padding: 1rem 1.2rem;
+            border-left: 5px solid;
+            margin-bottom: 0.8rem;
+            font-size: 0.9rem;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.03);
+            transition: 0.15s;
+        }
+        .notification-item:hover {
+            background: rgba(40, 40, 60, 0.8);
+        }
+        .refresh-btn {
+            background: linear-gradient(145deg, #1e1e30, #141422);
+            border: 1px solid #2f2f50;
+            border-radius: 50px;
+            padding: 0.6rem 1.8rem;
+            font-weight: 600;
+            transition: 0.2s;
+            color: #e0e0ff;
+        }
+        .refresh-btn:hover {
+            background: #252542;
+            border-color: #2E86AB;
+            box-shadow: 0 0 15px #2E86AB40;
+        }
+        .coin-row {
+            cursor: pointer;
+            transition: 0.15s;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.01);
+        }
+        .coin-row:hover {
+            background: rgba(46, 134, 171, 0.15);
+            backdrop-filter: blur(2px);
+        }
+        .table > :not(caption) > * > * {
+            background: transparent !important;
+            color: inherit;
+            border-bottom-color: rgba(255,255,255,0.04);
+            padding: 1rem 0.6rem;
+        }
+        .table {
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        .detail-panel {
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(16px);
+            border-radius: 32px;
+            padding: 1.8rem;
+            border: 1px solid #2E86AB60;
+            box-shadow: 0 25px 45px -10px #000000cc;
+        }
+        .btn-outline-glow {
+            border: 1px solid #2E86AB;
+            color: #b3e4ff;
+            border-radius: 40px;
+            padding: 0.4rem 1.2rem;
+            font-weight: 500;
+        }
+        .btn-outline-glow:hover {
+            background: #2E86AB20;
+            border-color: #5fb4d4;
+            color: white;
+        }
+        .bullish-tag {
+            background: linear-gradient(145deg, #1a4a3a, #2b6b53);
+            color: #bbffdd;
+            border-radius: 30px;
+            padding: 0.15rem 0.9rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border: 1px solid #3BB273;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btc-badge {
+            background: #1a2a2a;
+            border-left: 4px solid #3BB273;
+            font-weight: 600;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff30;
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a15; }
+        ::-webkit-scrollbar-thumb { background: #2a5a5a; border-radius: 15px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b8b8b; }
+        .fgi-gauge {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: rgba(0,0,0,0.3);
+            border-radius: 50px;
+            padding: 0.2rem 1rem;
+            display: inline-block;
+        }
+        .search-box {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #2E86AB40;
+            border-radius: 40px;
+            padding: 0.4rem 1rem;
+            color: white;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #2E86AB;
+            box-shadow: 0 0 5px #2E86AB;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar with BTC trend indicator and F&G -->
+    <nav class="navbar navbar-dark px-4 py-3 mb-4">
+        <div class="container-fluid d-flex flex-wrap align-items-center justify-content-between">
+            <span class="navbar-brand fs-2">
+                <i class="bi bi-graph-up me-2" style="color: #3BB273;"></i>
+                BULLISH EDGE <span style="font-weight:300;">|</span> 4‑FACTOR BUY
+            </span>
+            <div class="d-flex gap-3 align-items-center">
+                <!-- Fear & Greed Index -->
+                <div class="sell-focus-badge" style="background:#1f2a2a; border-color:#3BB273;">
+                    <i class="bi bi-emoji-sunglasses me-1"></i> Fear & Greed: <span id="fgiValue" class="fw-bold">--</span>
+                </div>
+                <div class="sell-focus-badge" id="btcTrendBadge" style="background:#1a2a2f; border-color:#2E86AB;">
+                    <i class="bi bi-bitcoin me-1"></i> BTC trend: <span id="btcTrendStatus">analyzing</span>
+                </div>
+                <button class="btn refresh-btn" id="manualRefreshBtn">
+                    <i class="bi bi-arrow-repeat me-2"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- Stats row with FGI integrated -->
+        <div class="row g-3 mb-5" id="statsRow">
+            <div class="col-6 col-md-3">
+                <div class="stat-card d-flex align-items-center">
+                    <div class="rounded-circle bg-dark p-3 me-3" style="background: #1f1f3a !important;">
+                        <i class="bi bi-currency-bitcoin fs-3" style="color: #f2a900;"></i>
+                    </div>
+                    <div>
+                        <small class="text-secondary-emphasis">Tracked Coins</small>
+                        <h3 class="mb-0 fw-bold" id="stat-total">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card d-flex align-items-center">
+                    <div class="rounded-circle bg-dark p-3 me-3" style="background: #1f3a2a !important;">
+                        <i class="bi bi-bar-chart-steps fs-3" style="color: #3BB273;"></i>
+                    </div>
+                    <div>
+                        <small class="text-secondary-emphasis">Avg Bullish Score</small>
+                        <h3 class="mb-0 fw-bold" id="stat-avg">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card d-flex align-items-center">
+                    <div class="rounded-circle bg-dark p-3 me-3" style="background: #2a1f3a !important;">
+                        <i class="bi bi-star-fill fs-3" style="color: #f4d03f;"></i>
+                    </div>
+                    <div>
+                        <small class="text-secondary-emphasis">Strong Buy Signals</small>
+                        <h3 class="mb-0 fw-bold" id="stat-strong-buy">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card d-flex align-items-center">
+                    <div class="rounded-circle bg-dark p-3 me-3" style="background: #2a1a3a !important;">
+                        <i class="bi bi-bell-fill fs-3" style="color: #a23b72;"></i>
+                    </div>
+                    <div>
+                        <small class="text-secondary-emphasis">Buy Alerts Sent</small>
+                        <h3 class="mb-0 fw-bold" id="stat-notify">-</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search and Filter bar -->
+        <div class="row mb-4">
+            <div class="col-md-6 mx-auto">
+                <input type="text" id="searchInput" class="form-control search-box w-100" placeholder="🔍 Search coin (e.g., Bitcoin, ETH)..." autocomplete="off">
+            </div>
+        </div>
+
+        <!-- Main row: coin table + notifications -->
+        <div class="row g-4">
+            <!-- Coins table (8 cols) -->
+            <div class="col-lg-8">
+                <div class="glass-card p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0"><i class="bi bi-table me-2" style="color: #3BB273;"></i> Live Buy Signals · 4‑Factor Model (Trend, RSI, Volume, Breakout)</h5>
+                        <small class="text-secondary" id="last-update-label">updating...</small>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle" id="coinsTable">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortTable('name')" style="cursor: pointer;"><i class="bi bi-arrow-down-up me-1"></i> Coin</th>
+                                    <th onclick="sortTable('price')" style="cursor: pointer;">Price</th>
+                                    <th onclick="sortTable('change')" style="cursor: pointer;">24h</th>
+                                    <th>Signal</th>
+                                    <th onclick="sortTable('strength')" style="cursor: pointer;">Bullish %</th>
+                                    <th>Key Factor</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="coins-table-body">
+                                <tr><td colspan="7" class="text-center text-secondary py-5"><div class="spinner me-2"></div> Loading market data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications panel (4 cols) -->
+            <div class="col-lg-4">
+                <div class="glass-card p-4 h-100 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold"><i class="bi bi-bell me-2" style="color: #3BB273;"></i> Recent Buy Alerts</h5>
+                        <span class="badge rounded-pill bg-dark border border-secondary px-3 py-2" id="notif-count">0</span>
+                    </div>
+                    <hr class="opacity-25 my-3">
+                    <div id="notifications-container" style="max-height: 480px; overflow-y: auto; flex:1;">
+                        <p class="text-secondary text-center small">Waiting for buy signals (BTC bullish filter enabled)</p>
+                    </div>
+                    <div class="mt-3 text-center">
+                        <small class="text-secondary"><i class="bi bi-info-circle"></i> Alerts only when BTC bullish trend active + strong buy score</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detail panel (hidden by default, shows 4 bullish indicators) -->
+        <div class="row mt-4" id="detailPanel" style="display: none;">
+            <div class="col-12">
+                <div class="detail-panel">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+                        <h4 id="detail-title" class="fw-bold mb-0"><i class="bi bi-pie-chart-fill me-2" style="color:#3BB273;"></i></h4>
+                        <button class="btn btn-outline-glow btn-sm" onclick="hideDetail()"><i class="bi bi-x-lg me-1"></i> Close</button>
+                    </div>
+                    <div class="row g-4" id="indicators-container">
+                        <!-- dynamic 4 indicators -->
+                    </div>
+                    <div class="mt-4 pt-3 border-top border-secondary">
+                        <div class="d-flex align-items-center">
+                            <span class="me-3 fw-semibold">Total Bullish Score (0-100)</span>
+                            <div class="progress-indicator flex-grow-1" style="height:12px;">
+                                <div id="detail-bullish-bar" class="h-100" style="width:0%; background: linear-gradient(90deg, #2E86AB, #3BB273); border-radius:12px;"></div>
+                            </div>
+                            <span class="ms-3 fw-bold" id="detail-bullish-percent">0%</span>
+                        </div>
+                        <div class="mt-2 small text-secondary" id="btcFilterNote"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-5 text-center text-secondary small d-flex flex-wrap justify-content-center gap-3">
+            <span><i class="bi bi-cpu me-1"></i> Crypto BUY v5.0 · Bullish 4‑Factor (Trend/RSI/Volume/Breakout)</span>
+            <span><i class="bi bi-arrow-repeat me-1"></i> Auto‑update every 2 min</span>
+            <span><span class="badge bg-success" id="system-status">active</span></span>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ---------- Global state ----------
+        let coinsData = [];
+        let notifications = [];
+        let stats = {
+            total_coins: 0,
+            updated_coins: 0,
+            avg_signal: 0,
+            strong_buy_signals: 0,
+            buy_signals: 0,
+            neutral_signals: 0,
+            total_notifications: 0,
+            last_update_str: '',
+            system_status: 'healthy',
+            fear_greed_index: 50,
+            btc_bullish: false
+        };
+        let currentSort = { column: 'strength', direction: 'desc' };
+        let searchTerm = '';
+
+        // ---------- Fetch all data ----------
+        async function fetchAllData() {
+            try {
+                const [signalsRes, healthRes, notifRes] = await Promise.all([
+                    fetch('/api/signals'),
+                    fetch('/api/health'),
+                    fetch('/api/notifications?limit=15')
+                ]);
+                const signalsData = await signalsRes.json();
+                const healthData = await healthRes.json();
+                const notifData = await notifRes.json();
+
+                if (signalsData.status === 'success') coinsData = signalsData.data;
+                if (notifData.notifications) {
+                    notifications = notifData.notifications.filter(n => 
+                        n.notification_type === 'buy' || n.notification_type === 'strong_buy'
+                    );
+                }
+                stats.total_notifications = notifData.total || notifications.length;
+                stats.last_update_str = healthData.last_update ? new Date(healthData.last_update).toLocaleString() : 'unknown';
+                stats.system_status = healthData.status || 'healthy';
+                stats.total_coins = healthData.coins || coinsData.length;
+                stats.btc_bullish = healthData.btc_bullish === true;
+                stats.fear_greed_index = healthData.fear_greed || 50;
+
+                // Update BTC badge & FGI
+                const btcSpan = document.getElementById('btcTrendStatus');
+                if (btcSpan) {
+                    if (stats.btc_bullish) {
+                        btcSpan.innerHTML = '<span class="text-success fw-bold">BULLISH ✓</span>';
+                        document.getElementById('btcTrendBadge').style.borderLeftColor = '#3BB273';
+                    } else {
+                        btcSpan.innerHTML = '<span class="text-warning">NEUTRAL/BEAR</span>';
+                        document.getElementById('btcTrendBadge').style.borderLeftColor = '#f0b400';
+                    }
+                }
+                document.getElementById('fgiValue').innerHTML = `${stats.fear_greed_index} <span class="small">(${stats.fear_greed_index >= 55 ? 'Greed' : stats.fear_greed_index <= 45 ? 'Fear' : 'Neutral'})</span>`;
+
+                calculateStatsFromCoins();
+                renderUI();
+            } catch (error) {
+                console.error('Fetch error:', error);
+            }
+        }
+
+        function calculateStatsFromCoins() {
+            const valid = coinsData.filter(c => c.is_valid !== false);
+            stats.updated_coins = valid.length;
+            const percentages = valid.map(c => c.total_percentage);
+            stats.avg_signal = percentages.length ? (percentages.reduce((a,b)=>a+b,0)/percentages.length).toFixed(1) : 0;
+            stats.strong_buy_signals = valid.filter(c => c.total_percentage >= 75).length;
+            stats.buy_signals = valid.filter(c => c.total_percentage >= 50 && c.total_percentage < 75).length;
+            stats.neutral_signals = valid.filter(c => c.total_percentage > 0 && c.total_percentage < 50).length;
+        }
+
+        function renderUI() {
+            renderStats();
+            applyFilterAndSort();
+            renderNotifications();
+            document.getElementById('last-update-label').innerText = `last: ${stats.last_update_str}`;
+            document.getElementById('system-status').innerText = stats.system_status === 'healthy' ? 'active' : 'warning';
+            document.getElementById('system-status').className = `badge bg-${stats.system_status === 'healthy' ? 'success' : 'warning'}`;
+        }
+
+        function renderStats() {
+            document.getElementById('stat-total').innerText = stats.updated_coins + '/' + stats.total_coins;
+            document.getElementById('stat-avg').innerHTML = (stats.avg_signal === 0 ? '0.0' : stats.avg_signal) + '%';
+            document.getElementById('stat-strong-buy').innerHTML = stats.strong_buy_signals + ' <small class="text-secondary">strong</small>';
+            document.getElementById('stat-notify').innerText = stats.total_notifications;
+        }
+
+        function sortTable(column) {
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'desc' ? 'asc' : 'desc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'desc';
+            }
+            applyFilterAndSort();
+        }
+
+        function applyFilterAndSort() {
+            let filtered = coinsData.filter(coin => coin.name.toLowerCase().includes(searchTerm.toLowerCase()) || coin.symbol.toLowerCase().includes(searchTerm.toLowerCase()));
+            if (currentSort.column === 'name') {
+                filtered.sort((a,b) => currentSort.direction === 'desc' ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
+            } else if (currentSort.column === 'price') {
+                filtered.sort((a,b) => currentSort.direction === 'desc' ? b.current_price - a.current_price : a.current_price - b.current_price);
+            } else if (currentSort.column === 'change') {
+                filtered.sort((a,b) => currentSort.direction === 'desc' ? b.price_change_24h - a.price_change_24h : a.price_change_24h - b.price_change_24h);
+            } else if (currentSort.column === 'strength') {
+                filtered.sort((a,b) => currentSort.direction === 'desc' ? b.total_percentage - a.total_percentage : a.total_percentage - b.total_percentage);
+            }
+            renderCoinsTable(filtered);
+        }
+
+        function renderCoinsTable(coins) {
+            const tbody = document.getElementById('coins-table-body');
+            if (!coins.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-4">No matching coins found</td></tr>';
+                return;
+            }
+            let html = '';
+            coins.forEach(coin => {
+                const signalClass = 
+                    coin.signal_type === 'STRONG BUY' ? 'strong-buy' :
+                    coin.signal_type === 'BUY' ? 'buy' :
+                    coin.signal_type === 'NEUTRAL' ? 'neutral' : 'neutral';
+                const changeClass = coin.price_change_24h >= 0 ? 'text-success' : 'text-danger';
+                const changeIcon = coin.price_change_24h >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short';
+                
+                // Find highest active indicator (raw_score 1)
+                let activeIndicators = (coin.indicators || []).filter(ind => ind.raw_score === 100);
+                let topIndicator = activeIndicators.length ? activeIndicators[0] : (coin.indicators?.[0] || null);
+                let indicatorShort = topIndicator ? (topIndicator.display_name.split(' ')[0] + ' ' + (topIndicator.display_name.includes('RSI') ? 'RSI' : '')) : '--';
+                let indicatorIcon = '';
+                if (topIndicator && topIndicator.name === 'trend') indicatorIcon = '📈';
+                else if (topIndicator && topIndicator.name === 'momentum') indicatorIcon = '⚡';
+                else if (topIndicator && topIndicator.name === 'volume') indicatorIcon = '📊';
+                else if (topIndicator && topIndicator.name === 'structure') indicatorIcon = '🚀';
+                
+                html += `<tr class="coin-row" onclick="showDetail('${coin.symbol}')">
+                    <td><strong>${coin.name}</strong><br><small class="text-secondary">${coin.symbol.replace('/USDT','')}</small></td>
+                    <td class="fw-semibold">$${coin.formatted_price}</td>
+                    <td class="${changeClass}"><i class="bi ${changeIcon}"></i> ${coin.formatted_24h_change}</td>
+                    <td><span class="signal-badge ${signalClass}">${coin.signal_type}</span></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fw-bold" style="color: ${coin.total_percentage >= 50 ? '#3BB273' : '#f0b400'};">${coin.total_percentage.toFixed(1)}%</span>
+                            <div class="progress-indicator" style="width:60px;">
+                                <div class="h-100" style="width: ${coin.total_percentage}%; background: ${coin.total_percentage >= 50 ? '#3BB273' : '#f0b400'};"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>${topIndicator ? `<span class="bullish-tag">${indicatorIcon} ${indicatorShort}</span>` : '<span class="text-secondary">—</span>'}</td>
+                    <td><i class="bi bi-chevron-right text-secondary opacity-50"></i></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderNotifications() {
+            const container = document.getElementById('notifications-container');
+            const countSpan = document.getElementById('notif-count');
+            if (!notifications.length) {
+                container.innerHTML = '<p class="text-secondary text-center small py-4">No buy alerts yet (min interval 10min, BTC filter active)</p>';
+                countSpan.innerText = '0';
+                return;
+            }
+            countSpan.innerText = notifications.length;
+            let html = '';
+            notifications.slice(0,10).forEach(n => {
+                const isStrong = n.notification_type === 'strong_buy';
+                const borderColor = isStrong ? '#3BB273' : '#2E86AB';
+                let shortMsg = n.message.split('\n')[0] || n.message;
+                html += `<div class="notification-item" style="border-left-color: ${borderColor};">
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-semibold">${n.coin_name}</span>
+                        <small class="text-secondary">${new Date(n.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                    <div class="small mt-1">${shortMsg.substring(0, 70)}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <span class="badge bg-dark">Score ${n.signal_strength?.toFixed(1) || '—'}%</span>
+                        <span class="fw-medium">$${n.price.toFixed(2)}</span>
+                        ${isStrong ? '<span class="badge bg-success">STRONG</span>' : ''}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // Show detailed 4 indicator breakdown
+        window.showDetail = function(symbol) {
+            const coin = coinsData.find(c => c.symbol === symbol);
+            if (!coin) return;
+
+            document.getElementById('detail-title').innerHTML = `<i class="bi bi-pie-chart-fill me-2" style="color:#3BB273;"></i> ${coin.name} · Bullish Factor Analysis (4 indicators)`;
+            const container = document.getElementById('indicators-container');
+            let indicatorsHtml = '';
+            const orderedIndicators = ['trend', 'momentum', 'volume', 'structure'];
+            const sortedIndicators = orderedIndicators.map(id => coin.indicator_scores?.[id] || coin.indicators?.find(i => i.name === id)).filter(Boolean);
+            
+            sortedIndicators.forEach(ind => {
+                const isActive = ind.raw_score === 100;
+                const activeBadge = isActive ? '<span class="badge bg-success ms-2">ACTIVE</span>' : '<span class="badge bg-secondary ms-2">INACTIVE</span>';
+                indicatorsHtml += `
+                <div class="col-md-6 col-lg-3">
+                    <div class="bg-dark bg-opacity-25 p-3 rounded-4 border border-secondary border-opacity-10 h-100">
+                        <div class="d-flex align-items-center">
+                            <div class="indicator-dot" style="background: ${ind.color}; box-shadow:0 0 8px ${ind.color};"></div>
+                            <span class="fw-semibold">${ind.display_name || ind.name}</span>
+                            ${activeBadge}
+                        </div>
+                        <div class="progress-indicator my-2">
+                            <div class="h-100" style="width: ${ind.percentage}%; background: ${ind.color};"></div>
+                        </div>
+                        <small class="text-secondary">${ind.description || '—'}</small>
+                        <div class="mt-2 small fw-bold">${isActive ? '✓ Bullish condition met' : '✗ Condition not met'}</div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = indicatorsHtml;
+            document.getElementById('detail-bullish-bar').style.width = coin.total_percentage + '%';
+            document.getElementById('detail-bullish-percent').innerText = coin.total_percentage.toFixed(1) + '%';
+            const btcNote = document.getElementById('btcFilterNote');
+            if (stats.btc_bullish) {
+                btcNote.innerHTML = '<i class="bi bi-check-circle-fill text-success me-1"></i> BTC Bullish Trend ACTIVE → buy signals are valid.';
+            } else {
+                btcNote.innerHTML = '<i class="bi bi-shield-exclamation text-warning me-1"></i> BTC trend is NOT bullish → all signals are forced to NEUTRAL (system safety).';
+            }
+            document.getElementById('detailPanel').style.display = 'block';
+            window.scrollTo({ top: document.getElementById('detailPanel').offsetTop - 80, behavior: 'smooth' });
+        };
+
+        window.hideDetail = function() {
+            document.getElementById('detailPanel').style.display = 'none';
+        };
+
+        // Search input handler
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            searchTerm = e.target.value;
+            applyFilterAndSort();
+        });
+
+        // Manual refresh
+        document.getElementById('manualRefreshBtn').addEventListener('click', function(e) {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner me-2"></span> Updating...';
+            fetch('/api/update', { method: 'POST' })
+                .then(res => res.json())
+                .then(() => fetchAllData())
+                .catch(err => {
+                    console.error(err);
+                    alert('Update failed');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i> Refresh';
+                });
+        });
+
+        // Auto refresh every 120 seconds
+        setInterval(fetchAllData, 120000);
+        
+        // Initial load
+        fetchAllData();
+    </script>
+</body>
+</html>
